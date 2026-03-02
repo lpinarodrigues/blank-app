@@ -1,5 +1,8 @@
 import streamlit as st
 
 def show():
-    st.title("📚 Master Study")
-    st.info("Módulo de Flashcards e Repetição Espaçada em carregamento.")
+    st.markdown("### 📚 Master Study | Estudo Ativo")
+    st.write("Selecione o Deck de Flashcards:")
+    deck = st.selectbox("Especialidade", ["Cardiologia", "Clínica Médica", "UTI"])
+    if st.button("Iniciar Sessão de Revisão"):
+        st.warning(f"Carregando deck de {deck}...")

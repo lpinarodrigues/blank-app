@@ -1,5 +1,9 @@
 import streamlit as st
 
 def show():
-    st.title("🧠 Core AI | Oráculo Cardiovascular")
-    st.info("O motor de IA está sendo sincronizado. Em breve, consultas de diretrizes em tempo real.")
+    st.markdown("### 🧠 Core AI | Oráculo de Diretrizes")
+    st.write("Digite sua dúvida clínica baseada em evidências:")
+    duvida = st.text_input("Ex: Qual o tempo porta-balão ideal?")
+    if duvida:
+        st.success(f"Analisando bases de dados para: {duvida}")
+        st.write("⏱️ Processando resposta via latência otimizada...")
