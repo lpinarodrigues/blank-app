@@ -2,97 +2,59 @@ import streamlit as st
 import sys
 import os
 
-# 1. CONFIGURAÇÃO DE LAYOUT (EXPANDE A TELA)
-st.set_page_config(
-    page_title="CORE NEXUS | Inteligência Médica",
-    page_icon="🛡️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# 1. Manter o Layout Wide e Visual (O que você já tinha)
+st.set_page_config(page_title="CORE NEXUS", page_icon="🛡️", layout="wide")
 
-# 2. O DESIGN "DE CÉU PARA A TERRA" (CSS CUSTOMIZADO)
+# CSS Original para manter o Design de Elite
 st.markdown("""
     <style>
-    /* Fundo e Fonte Geral */
-    .stApp {
-        background-color: #F4F7F9;
-    }
-    
-    /* Barra Lateral Azul Profundo */
-    [data-testid="stSidebar"] {
-        background-color: #1E3A8A !important;
-    }
-    [data-testid="stSidebar"] * {
-        color: white !important;
-    }
-    
-    /* Botões Estilo Hospitalar (Elite) */
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        background-color: #1E3A8A;
-        color: white;
-        height: 3em;
-        font-weight: bold;
-        border: 1px solid #ffffff33;
-        transition: 0.3s;
-    }
-    .stButton>button:hover {
-        background-color: #2563EB;
-        border: 1px solid #ffffff;
-    }
-    
-    /* Títulos e Cards */
-    h1, h2, h3 {
-        color: #1E3A8A;
-        font-family: 'Inter', sans-serif;
-    }
-    
-    div[data-testid="stExpander"] {
-        background-color: white;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    }
+    .stApp { background-color: #f8f9fa; }
+    [data-testid="stSidebar"] { background-color: #1E3A8A; color: white; }
+    [data-testid="stSidebar"] * { color: white !important; }
+    .stButton>button { width: 100%; border-radius: 8px; background-color: #1E3A8A; color: white; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
-# Imports das Páginas
-from paginas.login import login_view
-from paginas.dashboard import dashboard_view
-from paginas.core_ai import core_ai_view
-from paginas.estudo_ativo import estudo_ativo_view
+# 2. Reconexão dos Módulos (Aba por Aba)
+try:
+    from paginas.login import login_view
+    from paginas.dashboard import dashboard_view
+    from paginas.core_ai import core_ai_view
+    from paginas.estudo_ativo import estudo_ativo_view
+    from paginas.perfil import perfil_view
+except ImportError as e:
+    st.error(f"Erro ao conectar abas: {e}")
 
-# Gestão de Sessão
+# 3. Lógica de Sessão
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
+# 4. Roteamento das Abas
 if not st.session_state.autenticado:
     login_view.show()
 else:
-    # Sidebar Estilizada
     with st.sidebar:
-        st.markdown("<h1 style='text-align: center; color: white;'>🛡️ CORE NEXUS</h1>", unsafe_allow_html=True)
-        st.write(f"🟢 **Médico:** {st.session_state.get('user_email', 'Lucas Pina')}")
+        st.markdown("# 🛡️ CORE NEXUS")
+        st.write(f"👤 {st.session_state.get('user_email', 'Médico')}")
         st.divider()
         
+        # O Menu que reconecta tudo
         menu = st.radio(
-            "Navegação:",
-            ["📊 Dashboard", "🧠 Core AI (Oráculo)", "📚 Master Study", "👤 Meu Perfil"]
+            "Navegação", 
+            ["📊 Dashboard", "🧠 Core AI", "📚 Master Study", "👤 Meu Perfil"]
         )
         
         st.write("")
-        if st.button("🚪 Sair do Sistema"):
+        if st.button("Sair"):
             st.session_state.autenticado = False
             st.rerun()
 
-    # Roteamento
+    # Execução do código original de cada aba
     if menu == "📊 Dashboard":
         dashboard_view.show()
-    elif menu == "🧠 Core AI (Oráculo)":
+    elif menu == "🧠 Core AI":
         core_ai_view.show()
     elif menu == "📚 Master Study":
         estudo_ativo_view.show()
-    else:
-        st.title("👤 Perfil do Utilizador")
-        st.info("Configurações da conta e preferências de notificação.")
-
+    elif menu == "👤 Meu Perfil":
+        perfil_view.show()
