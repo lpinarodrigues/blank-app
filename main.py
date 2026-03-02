@@ -1,75 +1,78 @@
 import streamlit as st
 from database import get_core_score
 
-# 1. Configuração Master
+# 1. Configuração Master (Ocultando a sidebar padrão no mobile)
 st.set_page_config(page_title="CORE NEXUS", page_icon="🛡️", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. CSS DE ALTA USABILIDADE (Mobile-First)
+# 2. CSS DE APP MODERNO (UI/UX 2026)
 st.markdown("""
     <style>
-    /* Estilo Geral */
-    .stApp { background-color: #F8FAFC; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
     
-    /* BARRA LATERAL (AZUL PROFUNDO) */
-    [data-testid="stSidebar"] {
-        background-color: #1E3A8A !important;
-        min-width: 85vw !important; /* Ocupa quase tudo no celular */
-    }
-    [data-testid="stSidebar"] * { color: white !important; }
-
-    /* MENU DE RÁDIO (TRANSFORMADO EM BOTÕES GIGANTES NO MOBILE) */
-    div[role="radiogroup"] label {
-        background-color: rgba(255, 255, 255, 0.1);
-        padding: 20px !important;
-        margin-bottom: 12px !important;
-        border-radius: 12px !important;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        font-size: 1.1rem !important;
-        font-weight: bold !important;
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+        background-color: #F1F5F9;
     }
 
-    /* BOTÃO DE SAIR (DESTAQUE NO RODAPÉ) */
+    /* HEADER MODERNO */
+    .app-header {
+        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+        padding: 20px;
+        border-radius: 0 0 25px 25px;
+        color: white;
+        text-align: center;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(30, 58, 138, 0.2);
+    }
+
+    /* CARDS DE CONTEÚDO */
+    div[data-testid="stVerticalBlock"] > div {
+        background-color: transparent;
+    }
+    
+    .stMetric {
+        background-color: white !important;
+        border-radius: 15px !important;
+        padding: 15px !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05) !important;
+    }
+
+    /* BARRA DE NAVEGAÇÃO INFERIOR (ESTILO APP) */
+    .nav-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: white;
+        display: flex;
+        justify-content: space-around;
+        padding: 12px 0;
+        border-top: 1px solid #E2E8F0;
+        z-index: 999999;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+    }
+    
+    /* BOTÃO DE SAIR ESTILIZADO */
     .stButton>button {
-        height: 3.5rem;
-        border-radius: 10px;
-        font-weight: bold;
+        border-radius: 12px;
+        border: none;
+        background: #1E3A8A;
+        color: white;
+        font-weight: 600;
+        transition: all 0.3s;
     }
-
-    /* CABEÇALHO FIXO PARA CELULAR */
-    @media (max-width: 768px) {
-        .mobile-header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background-color: #1E3A8A;
-            color: white;
-            padding: 10px;
-            text-align: center;
-            z-index: 999;
-            font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-        .stApp { padding-top: 50px !important; }
-        
-        /* Instrução Visual */
-        .instruction {
-            background: #E0E7FF;
-            padding: 10px;
-            border-radius: 8px;
-            text-align: center;
-            font-size: 0.9rem;
-            color: #1E3A8A;
-            margin-bottom: 20px;
-            font-weight: bold;
-        }
-    }
+    
+    /* REMOVER ELEMENTOS INÚTEIS DO STREAMLIT */
+    header[data-testid="stHeader"] { visibility: hidden; }
+    [data-testid="stSidebar"] { display: none; }
     </style>
 """, unsafe_allow_html=True)
 
 # 3. Lógica de Autenticação
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
+if 'menu_atual' not in st.session_state:
+    st.session_state.menu_atual = "📊 Dashboard"
 
 # Importações Seguras
 try:
@@ -77,34 +80,48 @@ try:
     from paginas.dashboard import dashboard_view
     from paginas.core_ai import core_ai_view
     from paginas.estudo_ativo import estudo_ativo_view
+    from paginas.perfil import perfil_view
 except ImportError:
-    st.error("Carregando módulos...")
+    st.error("Sincronizando componentes...")
 
 if not st.session_state.autenticado:
     login_view.show()
 else:
-    # Cabeçalho Mobile
-    st.markdown('<div class="mobile-header">🛡️ CORE NEXUS MOBILE</div>', unsafe_allow_html=True)
-    st.markdown('<div class="instruction">👈 Toque na SETA no canto superior para abrir o MENU</div>', unsafe_allow_html=True)
+    # HEADER DINÂMICO
+    email = st.session_state.get('user_email', 'lucas.pina@unifesp.br')
+    score = get_core_score(email)
+    st.markdown(f'''
+        <div class="app-header">
+            <h2 style="margin:0; font-size: 1.4rem;">🛡️ CORE NEXUS</h2>
+            <p style="margin:5px 0 0 0; opacity: 0.9; font-size: 0.9rem;">🏆 {score} pts | {email}</p>
+        </div>
+    ''', unsafe_allow_html=True)
 
-    with st.sidebar:
-        st.markdown("<h2 style='text-align: center;'>🛡️ MENU CORE</h2>", unsafe_allow_html=True)
-        email = st.session_state.get('user_email', 'lucas.pina@unifesp.br')
-        score = get_core_score(email)
-        st.markdown(f"<p style='text-align: center;'>🏆 <b>Score: {score} pts</b></p>", unsafe_allow_html=True)
-        st.divider()
-        
-        menu = st.radio("Selecione a Área:", ["📊 Dashboard", "🧠 Core AI", "📚 Master Study", "👤 Perfil"])
-        
-        st.write("")
-        if st.button("🚪 Sair do Sistema"):
+    # BARRA DE NAVEGAÇÃO SUPERIOR (Botões Grandes como App)
+    menu_selecionado = st.segmented_control(
+        "Área de Atuação", 
+        ["📊 Dashboard", "🧠 Core AI", "📚 Master Study", "👤 Perfil"],
+        selection_mode="single",
+        default=st.session_state.menu_atual
+    )
+    
+    if menu_selecionado:
+        st.session_state.menu_atual = menu_selecionado
+
+    st.divider()
+
+    # ROTEAMENTO DE CONTEÚDO
+    if st.session_state.menu_atual == "📊 Dashboard":
+        dashboard_view.show()
+    elif st.session_state.menu_atual == "🧠 Core AI":
+        core_ai_view.show()
+    elif st.session_state.menu_atual == "📚 Master Study":
+        estudo_ativo_view.show()
+    elif st.session_state.menu_atual == "👤 Perfil":
+        perfil_view.show()
+        if st.button("🚪 Sair do Sistema", use_container_width=True):
             st.session_state.autenticado = False
             st.rerun()
 
-    # Roteamento
-    if menu == "📊 Dashboard": dashboard_view.show()
-    elif menu == "🧠 Core AI": core_ai_view.show()
-    elif menu == "📚 Master Study": estudo_ativo_view.show()
-    elif menu == "👤 Perfil":
-        from paginas.perfil import perfil_view
-        perfil_view.show()
+    # ESPAÇO FINAL PARA NÃO TAPAR O CONTEÚDO COM A BARRA (Se existisse nav fixa)
+    st.write("<br><br>", unsafe_allow_html=True)
