@@ -39,3 +39,4 @@ else:
     elif menu == "Core AI": carregar_aba("paginas.core_ai.core_ai_view")
     elif menu == "Master Study": carregar_aba("paginas.estudo_ativo.estudo_ativo_view")
     elif menu == "Perfil": carregar_aba("paginas.perfil.perfil_view")
+# Build Version: 1772459537
