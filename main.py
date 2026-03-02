@@ -2,41 +2,71 @@ import streamlit as st
 import sys
 import os
 
-# Forçar o Python a olhar a pasta atual
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# 1. Configuração de Base (Essencial para abrir em qualquer dispositivo)
+st.set_page_config(
+    page_title="CORE NEXUS",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-st.set_page_config(page_title="CORE NEXUS", page_icon="🛡️", layout="wide")
+# 2. Design de Elite (CSS para garantir o visual azul e profissional)
+st.markdown("""
+    <style>
+    .stApp { background-color: #F8FAFC; }
+    [data-testid="stSidebar"] { background-color: #1E3A8A !important; }
+    [data-testid="stSidebar"] * { color: white !important; }
+    .stButton>button { 
+        width: 100%; 
+        border-radius: 8px; 
+        background-color: #1E3A8A; 
+        color: white; 
+        font-weight: bold;
+        border: 1px solid #ffffff33;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# CSS de Elite
-st.markdown("<style>[data-testid='stSidebar'] {background-color: #1E3A8A; color: white;} .stButton>button {background-color: #1E3A8A; color: white; border-radius: 8px;}</style>", unsafe_allow_html=True)
+# 3. Importação das Páginas (As ligações que você pediu)
+# Importamos os módulos que já possuem o código original
+try:
+    from paginas.login import login_view
+    from paginas.dashboard import dashboard_view
+    from paginas.core_ai import core_ai_view
+    from paginas.estudo_ativo import estudo_ativo_view
+    from paginas.perfil import perfil_view
+except ImportError as e:
+    st.error(f"Erro ao localizar uma das pastas: {e}")
 
-# Inicialização segura das abas
+# 4. Lógica de Navegação
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
-def carregar_aba(modulo, funcao="show"):
-    try:
-        import importlib
-        mod = importlib.import_module(modulo)
-        getattr(mod, funcao)()
-    except Exception as e:
-        st.error(f"Erro na aba {modulo}: {e}")
-        st.info("Verifique se o arquivo existe na pasta 'paginas'.")
-
 if not st.session_state.autenticado:
-    carregar_aba("paginas.login.login_view")
+    login_view.show()
 else:
     with st.sidebar:
-        st.title("🛡️ CORE NEXUS")
-        st.write(f"👤 {st.session_state.get('user_email', 'Usuário')}")
+        st.markdown("<h2 style='text-align: center;'>🛡️ CORE NEXUS</h2>", unsafe_allow_html=True)
+        st.write(f"🟢 **Médico:** {st.session_state.get('user_email', 'Usuário')}")
         st.divider()
-        menu = st.radio("Navegação", ["Dashboard", "Core AI", "Master Study", "Perfil"])
-        if st.button("Sair"):
+        
+        # Aqui criamos os links diretos para cada página
+        menu = st.radio(
+            "Selecione a Área:",
+            ["📊 Dashboard", "🧠 Core AI", "📚 Master Study", "👤 Meu Perfil"]
+        )
+        
+        st.write("")
+        if st.button("🚪 Sair"):
             st.session_state.autenticado = False
             st.rerun()
 
-    if menu == "Dashboard": carregar_aba("paginas.dashboard.dashboard_view")
-    elif menu == "Core AI": carregar_aba("paginas.core_ai.core_ai_view")
-    elif menu == "Master Study": carregar_aba("paginas.estudo_ativo.estudo_ativo_view")
-    elif menu == "Perfil": carregar_aba("paginas.perfil.perfil_view")
-# Build Version: 1772459537
+    # 5. O "Direcionador" (Chama o código que já está nas pastas)
+    if menu == "📊 Dashboard":
+        dashboard_view.show()
+    elif menu == "🧠 Core AI":
+        core_ai_view.show()
+    elif menu == "📚 Master Study":
+        estudo_ativo_view.show()
+    elif menu == "👤 Meu Perfil":
+        perfil_view.show()
