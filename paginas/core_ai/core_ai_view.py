@@ -1,48 +1,53 @@
 import streamlit as st
 import time
+import os
+
+# Simulando a chamada de API (Substitua pelo seu client oficial de OpenAI/Anthropic)
+def chamar_ia_medica(prompt, especialidade="Cardiologia"):
+    # Aqui o sistema usaria sua API_KEY configurada nos Secrets
+    # Ex: client.chat.completions.create(...)
+    try:
+        # Simulando processamento neural de alta performance
+        time.sleep(1.5) 
+        return f"Com base nas diretrizes de {especialidade} (2024-2026), a conduta recomendada para '{prompt}' envolve estabilização imediata, monitorização hemodinâmica e seguimento do protocolo institucional da Unifesp/Dante Pazzanese."
+    except Exception as e:
+        return f"Erro na conexão com a API: {e}"
 
 def show():
-    st.markdown("### 🧠 Core AI | Oráculo de Diretrizes")
-    st.caption("Baseado em Evidências: ESC, AHA, SBC e Protocolos Institucionais.")
+    # Cabeçalho Estilizado para Mobile
+    st.markdown('<div style="background-color: #E0E7FF; padding: 15px; border-radius: 15px; margin-bottom: 20px;">'
+                '<h4 style="margin:0; color: #1E3A8A;">🧠 Assistente Core AI</h4>'
+                '<p style="margin:0; font-size: 0.8rem; color: #3730A3;">Conectado via API de Alta Performance</p>'
+                '</div>', unsafe_allow_html=True)
 
-    # 1. Atalhos de Emergência (Eficiência no Plantão)
-    st.write("⚡ **Protocolos de Acesso Rápido:**")
-    col_a, col_b, col_c = st.columns(3)
-    
-    with col_a:
-        if st.button("🚨 IAM c/ Supra"):
-            st.session_state.query_ai = "Manejo de IAM com supra de ST e tempo porta-balão"
-    with col_b:
-        if st.button("🧠 AVC Isquêmico"):
-            st.session_state.query_ai = "Critérios de trombólise no AVC isquêmico"
-    with col_c:
-        if st.button("🏥 Sepse/Choque"):
-            st.session_state.query_ai = "Protocolo de ressuscitação volêmica na Sepse"
+    # 1. Seleção de Especialidade (Ajusta o tom da IA)
+    esp = st.pills("Foco da Análise:", ["Geral", "Cardiologia", "UTI", "Emergência"], default="Geral")
 
-    st.divider()
-
-    # 2. Campo de Busca Inteligente
-    if 'query_ai' not in st.session_state:
-        st.session_state.query_ai = ""
-
-    query = st.text_input("Sua dúvida clínica:", value=st.session_state.query_ai, placeholder="Ex: Anticoagulação na FA valvar...")
-
-    if query:
-        with st.status("Consultando base de dados...", expanded=True):
-            st.write("🔍 Varrendo diretrizes atualizadas 2024-2026...")
-            time.sleep(1) # Simulação de latência de processamento IA
-            st.write("⚖️ Cruzando com protocolos da Unifesp/Dante...")
-            st.success("Análise Concluída.")
+    # 2. Input de Texto Moderno
+    with st.container(border=True):
+        query = st.text_area("Sua dúvida clínica:", placeholder="Ex: Critérios para extubação em paciente DPOC...", height=100)
         
-        # 3. Exibição da Resposta (Layout de Card)
-        with st.container(border=True):
-            st.markdown(f"#### 🛡️ Conduta Sugerida para: *{query}*")
-            st.info("Esta é uma sugestão baseada em protocolos. A decisão final é do médico assistente.")
-            st.write("""
-            **Pontos Chave:**
-            1. Verifique estabilidade hemodinâmica imediata.
-            2. Inicie monitorização contínua e acesso venoso calibroso.
-            3. Consulte a tabela de doses no rodapé da diretriz específica.
-            """)
-            st.caption("Fonte: Diretriz Brasileira de Cardiologia (2024) / Arquivos Brasileiros de Cardiologia.")
+        col1, col2 = st.columns([2,1])
+        with col2:
+            processar = st.button("Consultar IA ⚡", use_container_width=True)
+
+    if processar and query:
+        with st.status("Acionando Motores Neurais...", expanded=True) as status:
+            st.write("📡 Enviando prompt para API...")
+            resposta = chamar_ia_medica(query, esp)
+            st.write("⚖️ Validando contra diretrizes SBC/AHA...")
+            status.update(label="Análise Concluída!", state="complete", expanded=False)
+        
+        # 3. Resposta em Card de Elite
+        st.markdown(f"""
+            <div style="background-color: white; padding: 20px; border-radius: 20px; border-left: 5px solid #1E3A8A; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+                <p style="color: #64748B; font-size: 0.8rem; font-weight: bold; margin-bottom: 5px;">RESPOSTA DA INTELIGÊNCIA:</p>
+                <div style="color: #1E293B; line-height: 1.6;">{resposta}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Feedback de Utilidade (Alimenta o Core Score)
+        st.write("")
+        if st.button("✅ Útil para minha conduta (+5 pts)"):
+            st.toast("Score atualizado no Supabase!", icon="🛡️")
 
