@@ -4,3 +4,4 @@ pandas
 numpy
 postgrest
 streamlit-cookies-controller
+reportlab
