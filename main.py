@@ -2,60 +2,40 @@ import streamlit as st
 import sys
 import os
 
-# 1. Manter o Layout Wide e Visual (O que você já tinha)
+# Forçar o Python a olhar a pasta atual
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 st.set_page_config(page_title="CORE NEXUS", page_icon="🛡️", layout="wide")
 
-# CSS Original para manter o Design de Elite
-st.markdown("""
-    <style>
-    .stApp { background-color: #f8f9fa; }
-    [data-testid="stSidebar"] { background-color: #1E3A8A; color: white; }
-    [data-testid="stSidebar"] * { color: white !important; }
-    .stButton>button { width: 100%; border-radius: 8px; background-color: #1E3A8A; color: white; font-weight: bold; }
-    </style>
-""", unsafe_allow_html=True)
+# CSS de Elite
+st.markdown("<style>[data-testid='stSidebar'] {background-color: #1E3A8A; color: white;} .stButton>button {background-color: #1E3A8A; color: white; border-radius: 8px;}</style>", unsafe_allow_html=True)
 
-# 2. Reconexão dos Módulos (Aba por Aba)
-try:
-    from paginas.login import login_view
-    from paginas.dashboard import dashboard_view
-    from paginas.core_ai import core_ai_view
-    from paginas.estudo_ativo import estudo_ativo_view
-    from paginas.perfil import perfil_view
-except ImportError as e:
-    st.error(f"Erro ao conectar abas: {e}")
-
-# 3. Lógica de Sessão
+# Inicialização segura das abas
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
-# 4. Roteamento das Abas
+def carregar_aba(modulo, funcao="show"):
+    try:
+        import importlib
+        mod = importlib.import_module(modulo)
+        getattr(mod, funcao)()
+    except Exception as e:
+        st.error(f"Erro na aba {modulo}: {e}")
+        st.info("Verifique se o arquivo existe na pasta 'paginas'.")
+
 if not st.session_state.autenticado:
-    login_view.show()
+    carregar_aba("paginas.login.login_view")
 else:
     with st.sidebar:
-        st.markdown("# 🛡️ CORE NEXUS")
-        st.write(f"👤 {st.session_state.get('user_email', 'Médico')}")
+        st.title("🛡️ CORE NEXUS")
+        st.write(f"👤 {st.session_state.get('user_email', 'Usuário')}")
         st.divider()
-        
-        # O Menu que reconecta tudo
-        menu = st.radio(
-            "Navegação", 
-            ["📊 Dashboard", "🧠 Core AI", "📚 Master Study", "👤 Meu Perfil"]
-        )
-        
-        st.write("")
+        menu = st.radio("Navegação", ["Dashboard", "Core AI", "Master Study", "Perfil"])
         if st.button("Sair"):
             st.session_state.autenticado = False
             st.rerun()
 
-    # Execução do código original de cada aba
-    if menu == "📊 Dashboard":
-        dashboard_view.show()
-    elif menu == "🧠 Core AI":
-        core_ai_view.show()
-    elif menu == "📚 Master Study":
-        estudo_ativo_view.show()
-    elif menu == "👤 Meu Perfil":
-        perfil_view.show()
-# Cache Reset Mon Mar  2 13:47:41 UTC 2026
+    if menu == "Dashboard": carregar_aba("paginas.dashboard.dashboard_view")
+    elif menu == "Core AI": carregar_aba("paginas.core_ai.core_ai_view")
+    elif menu == "Master Study": carregar_aba("paginas.estudo_ativo.estudo_ativo_view")
+    elif menu == "Perfil": carregar_aba("paginas.perfil.perfil_view")
