@@ -1,18 +1,18 @@
 import streamlit as st
+from database import update_score
 
 def show():
-    st.markdown("### 📚 Master Study | Revisão Espaçada")
-    st.write("Sistema de estudo ativo para retenção de longo prazo.")
+    st.markdown("### 📚 Master Study | Estudo Ativo")
+    email = st.session_state.get('user_email', 'lucas.pina@unifesp.br')
     
-    # Seletor de Decks Eficiente
-    deck = st.selectbox("Escolha o Deck de Revisão:", ["Cardiologia Clínica", "ECG de Alta Complexidade", "Emergências Médicas"])
+    st.info("Flashcard: Qual a primeira conduta na Taquicardia Ventricular sem Pulso?")
     
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.metric("Flashcards para Hoje", "15", delta="Novo recorde")
-    with col_b:
-        st.metric("Precisão Média", "92%", delta="2%")
-    
-    st.divider()
-    if st.button("🚀 Iniciar Sessão de Estudo"):
-        st.info(f"Carregando deck: {deck}")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Acertei (Ganhar +10 pts)"):
+            novo = update_score(email, 10)
+            st.success(f"Boa! Novo Score: {novo}")
+            st.balloons()
+    with col2:
+        if st.button("❌ Errei (Revisar em 5 min)"):
+            st.warning("Sem problemas. Vamos revisar em breve!")
