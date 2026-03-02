@@ -1,50 +1,59 @@
 import streamlit as st
-from streamlit_cookies_controller import CookieController
+import sys
+import os
+
+# Configuração de Página - ESTA É A CHAVE PARA O VISUAL
+st.set_page_config(
+    page_title="CORE NEXUS", 
+    page_icon="🛡️", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
+
+# Injeção de CSS para o visual moderno (Azul e Branco Hospitalar)
+st.markdown("""
+    <style>
+    .stApp { background-color: #f8f9fa; }
+    [data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #e0e0e0; }
+    .stButton>button { width: 100%; border-radius: 8px; background-color: #1E3A8A; color: white; height: 3em; font-weight: bold; }
+    .stRadio > label { font-weight: bold; color: #1E3A8A; }
+    h1, h2, h3 { color: #1E3A8A; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    </style>
+""", unsafe_allow_html=True)
+
 from paginas.login import login_view
 from paginas.dashboard import dashboard_view
 from paginas.core_ai import core_ai_view
 from paginas.estudo_ativo import estudo_ativo_view
-from paginas.perfil import perfil_view
 
-st.set_page_config(page_title="CORE NEXUS", page_icon="🛡️", layout="wide")
+# Gerenciamento de Sessão
+if 'autenticado' not in st.session_state:
+    st.session_state.autenticado = False
 
-# Inicializa o controlador de cookies
-controller = CookieController()
-
-def show_app():
-    # Tenta recuperar o login salvo nos cookies do navegador
-    cookie_auth = controller.get('core_nexus_auth')
-    
-    if 'autenticado' not in st.session_state:
-        if cookie_auth:
-            st.session_state.autenticado = True
-            st.session_state.user_email = cookie_auth
-        else:
+if not st.session_state.autenticado:
+    login_view.show()
+else:
+    # Barra Lateral Estilizada
+    with st.sidebar:
+        st.markdown(f"<h1 style='text-align: center;'>🛡️ CORE NEXUS</h1>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center;'>👤 <b>{st.session_state.get('user_email', 'Médico')}</b></p>", unsafe_allow_html=True)
+        st.divider()
+        
+        menu = st.radio("Navegação Principal:", ["📊 Dashboard", "🧠 Core AI", "📚 Master Study", "⚙️ Configurações"])
+        
+        st.spacer = st.container()
+        st.write("") # Espaçador
+        if st.button("🚪 Encerrar Sessão"):
             st.session_state.autenticado = False
+            st.rerun()
 
-    if not st.session_state.autenticado:
-        login_view.show()
-        # Se o usuário logar dentro do login_view, precisamos salvar o cookie lá também
+    # Roteamento de Páginas
+    if menu == "📊 Dashboard":
+        dashboard_view.show()
+    elif menu == "🧠 Core AI":
+        core_ai_view.show()
+    elif menu == "📚 Master Study":
+        estudo_ativo_view.show()
     else:
-        with st.sidebar:
-            st.title("🛡️ CORE NEXUS")
-            st.write(f"👤 {st.session_state.get('user_email')}")
-            st.divider()
-            menu = st.radio("Navegação", ["Dashboard", "Core AI", "Master Study", "Meu Perfil"])
-            
-            if st.button("Sair"):
-                controller.remove('core_nexus_auth')
-                st.session_state.autenticado = False
-                st.rerun()
-
-        if menu == "Dashboard":
-            dashboard_view.show()
-        elif menu == "Core AI":
-            core_ai_view.show()
-        elif menu == "Master Study":
-            estudo_ativo_view.show()
-        else:
-            perfil_view.show()
-
-if __name__ == "__main__":
-    show_app()
+        st.title("⚙️ Configurações")
+        st.write("Ajustes de perfil e notificações.")
