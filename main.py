@@ -58,3 +58,4 @@ else:
         estudo_ativo_view.show()
     elif menu == "👤 Meu Perfil":
         perfil_view.show()
+# Cache Reset Mon Mar  2 13:47:41 UTC 2026
