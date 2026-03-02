@@ -1,49 +1,34 @@
 import streamlit as st
+from supabase import create_client, Client
+
+url = st.secrets.get("SUPABASE_URL")
+key = st.secrets.get("SUPABASE_KEY")
+supabase = create_client(url, key)
 
 def show():
-    st.title("📚 Master Study | Hub Comunitário")
-    st.markdown("---")
-
-    # Controle de Privacidade na Sidebar
-    with st.sidebar:
-        st.subheader("🌐 Configurações de Rede")
-        compartilhar = st.toggle("Compartilhar minhas métricas no Ranking", value=False)
-        contribuir = st.toggle("Contribuir para a Biblioteca Global", value=True)
-
-    aba_estudo = st.tabs(["🎴 Meus Decks", "🌍 Biblioteca Global", "📊 Ranking & Performance", "⏱️ Pomodoro"])
-
-    # --- BIBLIOTECA GLOBAL COM DEDUPLICAÇÃO ---
-    with aba_estudo[1]:
-        st.subheader("📖 Biblioteca Colaborativa (Dante/UNIFESP)")
-        busca = st.text_input("🔍 Buscar por Tag (ex: #Cardio, #MedLegal):")
+    st.title("📚 Master Study")
+    
+    try:
+        # Busca cards da biblioteca global
+        res = supabase.table("flashcards").select("*").execute()
         
-        st.info("🤖 **IA Curadora:** Analisando duplicatas... 98% de eficiência de armazenamento.")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            with st.container(border=True):
-                st.markdown("**#Cardio | Estenose Mitral**")
-                st.caption("Unificado por IA (Baseado em 15 contribuições)")
-                st.button("📥 Adicionar ao meu Estudo")
-        
-        with col2:
-            with st.container(border=True):
-                st.markdown("**#MedLegal | Tanatologia**")
-                st.caption("Autor: Comunidade CORE")
-                st.button("📥 Ver Flashcards")
-
-    # --- RANKING DE PERFORMANCE ---
-    with aba_estudo[2]:
-        st.subheader("🏆 Ranking de Elite")
-        if compartilhar:
-            st.write("Sua posição atual: **4º Lugar (Nível Residente)**")
-            data = {"Usuário": ["Dr. Silva", "Dra. Ana", "Você"], "Acertos %": [98, 95, 92]}
-            st.table(data)
+        if not res.data:
+            st.info("Nenhum card encontrado. Crie o primeiro abaixo!")
         else:
-            st.warning("Suas métricas estão privadas. Ative o modo 'Compartilhar' para entrar no ranking.")
+            for card in res.data:
+                with st.expander(f"❓ {card['pergunta']}"):
+                    st.write(f"**Resposta:** {card['resposta']}")
+                    st.caption(f"Categoria: {card['categoria']}")
 
-    # --- SISTEMA DE DEDUPLICAÇÃO (LÓGICA INTERNA) ---
-    if contribuir:
-        # Simulação de detecção de duplicidade
-        if st.session_state.get('novo_card'):
-            st.toast("🔍 IA detectou flashcard similar na Biblioteca Global. Fundindo dados para otimização...")
+    except Exception as e:
+        st.error(f"Erro ao carregar cards: {e}")
+
+    st.divider()
+    with st.form("novo_card"):
+        st.subheader("Novo Flashcard")
+        p = st.text_input("Pergunta")
+        r = st.text_area("Resposta")
+        cat = st.selectbox("Categoria", ["Valvopatias", "Coronariopatia", "Arritmias", "IC"])
+        if st.form_submit_button("Adicionar à Biblioteca"):
+            supabase.table("flashcards").insert({"pergunta": p, "resposta": r, "categoria": cat}).execute()
+            st.rerun()
