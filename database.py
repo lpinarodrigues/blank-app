@@ -53,3 +53,19 @@ def obter_estatisticas_estudo(e):
 
 def get_core_score(e):
     return 0
+
+def salvar_historico_chat(email, pergunta, resposta, area, subtema):
+    """Salva a conversa para aparecer na barra lateral"""
+    try:
+        get_supabase().table("flashcards").insert({
+            "pergunta": pergunta, "resposta": resposta, "grande_area": area, 
+            "subtema": subtema, "categoria": "Historico_Chat", "is_global": False, "criado_por_email": email
+        }).execute()
+    except: pass
+
+def carregar_historico_chat(email):
+    """Busca o histórico do usuário"""
+    try:
+        res = get_supabase().table("flashcards").select("*").eq("criado_por_email", email).eq("categoria", "Historico_Chat").order("id", desc=True).limit(10).execute()
+        return res.data if res.data else []
+    except: return []

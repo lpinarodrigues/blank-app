@@ -1,53 +1,67 @@
 import streamlit as st
 from utils.ia_engine import consultar_core_ia_perfeicao, gerar_apenas_flashcards, gerar_apenas_questoes, gerar_pdf_resposta
-from database import salvar_item_estudo
+from database import salvar_item_estudo, salvar_historico_chat, carregar_historico_chat
 
 def show():
-    st.markdown("### 🧠 Core AI | Terminal Clínico Avançado")
     email = st.session_state.get('user_email', 'admin@nexus.com')
     
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+    # BARRA LATERAL: HISTÓRICO DE CONSULTAS
+    with st.sidebar:
+        st.subheader("📚 Minhas Consultas")
+        historico = carregar_historico_chat(email)
+        chat_selecionado = None
+        if historico:
+            for h in historico:
+                if st.button(f"💬 {h['pergunta'][:25]}...", key=f"hist_{h['id']}", use_container_width=True):
+                    chat_selecionado = h
+        else:
+            st.caption("Nenhum histórico encontrado.")
+
+    st.markdown("### 🧠 Core AI | Consultoria Avançada")
 
     pergunta = st.chat_input("Insira o tema, caso clínico ou dúvida médica...")
     
-    if pergunta:
-        with st.spinner("Estruturando resposta aprofundada e formatando referências (Vancouver)..."):
-            resposta, area, subtema = consultar_core_ia_perfeicao(pergunta)
-            
-            # Auto-Save do Resumo
-            salvar_item_estudo({
-                "pergunta": f"Resumo Oficial: {pergunta}",
-                "resposta": resposta,
-                "grande_area": area,
-                "subtema": subtema,
-                "categoria": "Resumo",
-                "is_global": True,
-                "criado_por_email": email
-            })
-            
-            st.session_state.chat_history.append({"q": pergunta, "a": resposta, "area": area, "subtema": subtema})
+    # Lógica de Exibição (Nova Consulta vs Carregar Histórico)
+    dados_exibicao = None
 
-    for i, chat in enumerate(st.session_state.chat_history):
+    if pergunta:
+        with st.spinner("Estruturando protocolo profundo e referências..."):
+            resposta, area, subtema = consultar_core_ia_perfeicao(pergunta)
+            salvar_historico_chat(email, pergunta, resposta, area, subtema)
+            dados_exibicao = {"q": pergunta, "a": resposta, "area": area, "subtema": subtema}
+    elif chat_selecionado:
+        dados_exibicao = {"q": chat_selecionado['pergunta'], "a": chat_selecionado['resposta'], "area": chat_selecionado['grande_area'], "subtema": chat_selecionado['subtema']}
+
+    # RENDERIZAR O RESULTADO E OS BOTÕES
+    if dados_exibicao:
         with st.container(border=True):
-            st.markdown(f"**Tema:** {chat['q']}")
-            st.markdown(chat['a'])
-            st.caption(f"🏷️ Classificação: **{chat['area']} | {chat['subtema']}**")
+            st.markdown(f"**Tema:** {dados_exibicao['q']}")
+            st.markdown(dados_exibicao['a'])
+            st.caption(f"🏷️ Classificação: **{dados_exibicao['area']} | {dados_exibicao['subtema']}**")
             
             st.divider()
-            col1, col2, col3 = st.columns(3)
+            st.write("🛠️ **Ações de Estudo e Exportação:**")
+            col1, col2, col3, col4 = st.columns(4)
             
-            if col1.button("🎴 Extrair Flashcards", key=f"btn_f_{i}"):
-                with st.spinner("Minerando dados..."):
-                    qtd = gerar_apenas_flashcards(chat['a'], chat['area'], chat['subtema'], email)
-                    if qtd > 0: st.success(f"✅ {qtd} Flashcards salvos!")
-                    else: st.error("Falha ao gerar flashcards.")
+            if col1.button("📥 Salvar nos Resumos", icon="📘"):
+                salvar_item_estudo({
+                    "pergunta": f"Resumo Oficial: {dados_exibicao['q']}", "resposta": dados_exibicao['a'],
+                    "grande_area": dados_exibicao['area'], "subtema": dados_exibicao['subtema'],
+                    "categoria": "Resumo", "is_global": True, "criado_por_email": email
+                })
+                st.toast("✅ Enviado para a aba Master Study > Resumos!")
+                
+            if col2.button("🎴 Flashcards", icon="⚡"):
+                with st.spinner("Minerando..."):
+                    qtd = gerar_apenas_flashcards(dados_exibicao['a'], dados_exibicao['area'], dados_exibicao['subtema'], email)
+                    if qtd: st.success(f"{qtd} gerados!")
+                    else: st.error("Erro no JSON da IA.")
             
-            if col2.button("📝 Extrair Questões", key=f"btn_q_{i}"):
-                with st.spinner("Montando questões..."):
-                    qtd = gerar_apenas_questoes(chat['a'], chat['area'], chat['subtema'], email)
-                    if qtd > 0: st.success(f"✅ {qtd} Questões salvas!")
-                    else: st.error("Falha ao gerar questões.")
+            if col3.button("📝 Simulados", icon="🎯"):
+                with st.spinner("Criando ABCD..."):
+                    qtd = gerar_apenas_questoes(dados_exibicao['a'], dados_exibicao['area'], dados_exibicao['subtema'], email)
+                    if qtd: st.success(f"{qtd} geradas!")
+                    else: st.error("Erro no JSON da IA.")
             
-            pdf_data = gerar_pdf_resposta(chat['a'], email)
-            col3.download_button("📄 Baixar PDF Rastreado", data=pdf_data, file_name=f"Protocolo_{i}.pdf", mime="application/pdf", key=f"btn_pdf_{i}")
+            pdf_data = gerar_pdf_resposta(dados_exibicao['a'], email)
+            col4.download_button("📄 Baixar PDF", data=pdf_data, file_name="CORE_NEXUS_Protocolo.pdf", mime="application/pdf")
