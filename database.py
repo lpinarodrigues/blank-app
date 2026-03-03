@@ -5,6 +5,32 @@ import pandas as pd
 def get_supabase():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
+# ==========================================
+# 1. AUTENTICAÇÃO E USUÁRIOS (O erro estava aqui)
+# ==========================================
+def validar_login(e, s):
+    try: return get_supabase().table("membros_core").select("*").eq("email", e).eq("senha", s).execute().data[0]
+    except: return None
+
+def cadastrar_membro(nome, email, senha):
+    """Função restaurada para permitir o login/cadastro"""
+    try:
+        check = get_supabase().table("membros_core").select("email").eq("email", email).execute()
+        if check.data: return False
+        get_supabase().table("membros_core").insert({"nome": nome, "email": email, "senha": senha, "score": 0}).execute()
+        return True
+    except: return False
+
+def get_core_score(email):
+    try:
+        res = get_supabase().table("membros_core").select("score").eq("email", email).execute()
+        if res.data and isinstance(res.data, list) and isinstance(res.data[0], dict): return res.data[0].get('score', 0)
+        return 0
+    except: return 0
+
+# ==========================================
+# 2. ESTUDO ATIVO E BIBLIOTECA
+# ==========================================
 def salvar_item_estudo(dados):
     try: return get_supabase().table("flashcards").insert(dados).execute()
     except: return None
@@ -13,9 +39,7 @@ def salvar_questao(dados):
     try: return get_supabase().table("questionarios").insert(dados).execute()
     except: return None
 
-# --- NAVEGAÇÃO E LISTAGEM (A função que faltava) ---
 def listar_flashcards(email):
-    """Lista apenas os cards pessoais do usuário, fora da lixeira"""
     try:
         res = get_supabase().table("flashcards").select("*").eq("criado_por_email", email).eq("is_global", False).neq("categoria", "Lixeira").execute()
         return res.data if isinstance(res.data, list) else []
@@ -38,7 +62,9 @@ def adotar_item_global(item_id, email):
             return True
     except: return False
 
-# --- HISTÓRICO E LIXEIRA PRESERVADOS ---
+# ==========================================
+# 3. HISTÓRICO DE CONSULTAS (CORE AI)
+# ==========================================
 def salvar_historico_chat(email, pergunta, resposta, area, subtema):
     try: get_supabase().table("flashcards").insert({"pergunta": str(pergunta), "resposta": str(resposta), "grande_area": str(area), "subtema": str(subtema), "categoria": "Historico_Chat", "is_global": False, "criado_por_email": email}).execute()
     except: pass
@@ -50,6 +76,9 @@ def carregar_historico_chat(email):
         return []
     except: return []
 
+# ==========================================
+# 4. SISTEMA DE LIXEIRA / RECICLAGEM
+# ==========================================
 def mover_para_lixeira(item_id):
     try: return get_supabase().table("flashcards").update({"categoria": "Lixeira", "is_global": False}).eq("id", item_id).execute()
     except: return False
@@ -67,14 +96,3 @@ def listar_lixeira(email):
         res = get_supabase().table("flashcards").select("*").eq("criado_por_email", email).eq("categoria", "Lixeira").execute()
         return res.data if isinstance(res.data, list) else []
     except: return []
-
-def get_core_score(email):
-    try:
-        res = get_supabase().table("membros_core").select("score").eq("email", email).execute()
-        if res.data and isinstance(res.data, list) and isinstance(res.data[0], dict): return res.data[0].get('score', 0)
-        return 0
-    except: return 0
-    
-def validar_login(e, s):
-    try: return get_supabase().table("membros_core").select("*").eq("email", e).eq("senha", s).execute().data[0]
-    except: return None
