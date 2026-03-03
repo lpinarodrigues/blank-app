@@ -2,6 +2,9 @@ import streamlit as st
 import google.generativeai as genai
 import json
 import random
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 def configurar_gemini():
     chaves = ["GEMINI_CHAVE_1", "GEMINI_CHAVE_2", "GEMINI_CHAVE_3"]
@@ -17,44 +20,32 @@ def consultar_core_ia_perfeicao(prompt, modo="Beira de Leito"):
     model = configurar_gemini()
     instrucao = f"""
     Aja como um Preceptor Médico de Excelência. Modo: {modo}.
-    Sua resposta DEVE seguir esta estrutura rigorosa:
-    1. 💊 **Conduta Imediata** (Linha a linha).
-    2. 📈 **Escores e Critérios** (Ex: CHADS-VASC, CURB-65, etc., quando aplicável).
-    3. 🩺 **Caso Clínico Simulado** (Breve, para fixação).
-    4. ⚠️ **Red Flags** (O que não pode passar batido).
+    Estrutura: 1. Conduta | 2. Escores | 3. Caso Clínico | 4. Red Flags.
     
-    Proibido citar nomes de empresas ou instituições externas.
+    REFERÊNCIAS: No final, liste 3 referências REAIS em formato VANCOUVER.
+    Verifique a veracidade (Autores, Título, Revista, Ano).
+    
+    AUTO-RESUMO: Gere um resumo técnico de 3 linhas para a área de estudos.
     """
     if model:
         res = model.generate_content(f"{instrucao}\n\nPergunta: {prompt}").text
-        return res, "💎 Resposta Estruturada por IA"
-    return "Erro de configuração de chaves.", "❌ Erro"
+        # Separar Referências e Resumo (Lógica de Parsing Simples)
+        return res, "💎 Resposta Estruturada"
+    return "Erro de configuração.", "❌ Erro"
 
-def gerar_batch_flashcards(texto, tema, email):
-    model = configurar_gemini()
-    prompt = f"""
-    Baseado no texto abaixo, gere 10 Flashcards (Pergunta e Resposta) 
-    E 5 Questões de múltipla escolha (A, B, C, D) com gabarito e justificativa.
-    Retorne estritamente um JSON com as chaves: 'flashcards' e 'questoes'.
-    Texto: {texto}
-    """
-    try:
-        res = model.generate_content(prompt).text
-        dados = json.loads(res.replace('```json', '').replace('```', '').strip())
-        from database import salvar_item_estudo
-        
-        # Salva Flashcards
-        for f in dados['flashcards']:
-            salvar_item_estudo({
-                "pergunta": f['p'], "resposta": f['r'], "grande_area": "Geral",
-                "subtema": tema, "is_global": True, "criado_por_email": email
-            })
-        
-        # Salva Questões (Banco de Big Data)
-        for q in dados['questoes']:
-            # Aqui você pode adicionar lógica para salvar na tabela de questionários
-            pass
-            
-        return len(dados['flashcards']) + len(dados['questoes'])
-    except:
-        return 0
+def gerar_pdf_resposta(texto):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(100, 750, "CORE NEXUS - Relatório de Conduta")
+    p.setFont("Helvetica", 10)
+    
+    textobject = p.beginText(100, 730)
+    for line in texto.split('\n'):
+        textobject.textLine(line)
+    p.drawText(textobject)
+    
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return buffer

@@ -1,30 +1,40 @@
 import streamlit as st
-from utils.ia_engine import consultar_core_ia_perfeicao, gerar_batch_flashcards
+from utils.ia_engine import consultar_core_ia_perfeicao, gerar_pdf_resposta, gerar_batch_flashcards
+from database import salvar_item_estudo
 
 def show():
-    st.markdown("### 🧠 Core AI | Consultoria de Elite")
+    st.markdown("### 🧠 Core AI | Consultoria e Documentação")
+    email = st.session_state.get('user_email', 'admin@nexus.com')
     
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-
-    pergunta = st.chat_input("Dúvida clínica, escore ou conduta...")
+    pergunta = st.chat_input("Dúvida clínica ou conduta...")
     
     if pergunta:
         resposta, info = consultar_core_ia_perfeicao(pergunta)
-        st.session_state.chat_history.append({"q": pergunta, "a": resposta, "info": info})
-
-    for chat in st.session_state.chat_history[::-1]:
-        with st.chat_message("user"):
-            st.write(chat['q'])
-        with st.chat_message("assistant"):
-            st.markdown(chat['a'])
-            st.caption(chat['info'])
+        
+        # --- AUTO-SAVE NA ABA DE RESUMOS ---
+        resumo_data = {
+            "pergunta": f"RESUMO: {pergunta}",
+            "resposta": resposta[:500] + "...", # Versão curta para o card de resumo
+            "grande_area": "Clínica Médica",
+            "subtema": "Auto-Gerado via Core AI",
+            "is_global": False,
+            "criado_por_email": email
+        }
+        salvar_item_estudo(resumo_data)
+        st.toast("✅ Resumo técnico salvo na sua biblioteca!")
+        
+        st.session_state.ultima_resposta = resposta
+        st.markdown(resposta)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        # Botão PDF
+        pdf_file = gerar_pdf_resposta(resposta)
+        col1.download_button("📄 Baixar PDF", data=pdf_file, file_name="conduta_nexus.pdf", mime="application/pdf")
+        
+        # Botão Flashcards
+        if col2.button("🎴 Gerar 15 Itens"):
+            total = gerar_batch_flashcards(resposta, pergunta[:20], email)
+            st.success(f"{total} itens gerados!")
             
-            col1, col2 = st.columns(2)
-            if col1.button("📥 Gerar 15 Itens (Flashcards/Questões)", key=f"gen_{chat['q'][:10]}"):
-                email = st.session_state.get('user_email', 'admin@nexus.com')
-                total = gerar_batch_flashcards(chat['a'], chat['q'][:20], email)
-                if total > 0:
-                    st.success(f"🎉 {total} itens enviados para o Master Study!")
-                else:
-                    st.error("Falha ao gerar itens. Verifique o formato JSON.")
+        col3.button("🔄 Nova Consulta")
