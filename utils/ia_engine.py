@@ -1,46 +1,31 @@
 import streamlit as st
 import google.generativeai as genai
+from groq import Groq
 import json
 
 def configurar_gemini():
     genai.configure(api_key=st.secrets["GEMINI_CHAVE_2"])
     return genai.GenerativeModel('gemini-1.5-pro')
 
-def dissecar_arquivo_master(conteudo, area, subtema):
-    model = configurar_gemini()
-    prompt = f"""
-    Aja como examinador do TEC (SBC). Baseado no texto, gere 10 questões A-D.
-    Hierarquia: Área: {area} | Subtema: {subtema}.
-    
-    PARA CADA QUESTÃO:
-    - Justificativa detalhada da CORRETA.
-    - JUSTIFICATIVA DE CADA ERRO (Distratores A, B, C, D).
-    - Dica de 'Área de Reforço'.
-    
-    RETORNE APENAS JSON:
-    [{{
-        "pergunta": "", "a": "", "b": "", "c": "", "d": "", "gabarito": "A",
-        "explica_correta": "", "explica_erros": {{"A":"","B":"","C":"","D":""}},
-        "reforco": ""
-    }}]
-    """
-    res = model.generate_content([prompt, conteudo]).text
-    try:
-        return json.loads(res.replace('```json', '').replace('```', '').strip())
-    except: return []
+def consultar_core_ia_perfeicao(prompt, modo="Beira de Leito"):
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    instrucao = f"Aja como Preceptor Sênior da Unifesp/Dante. Modo: {modo}. Foco em diretrizes 2024-2026."
+    res = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "system", "content": instrucao}, {"role": "user", "content": prompt}],
+    ).choices[0].message.content
+    return res, "📚 Fontes: SBC, ESC, AHA, Sabiston."
 
-def validar_card_com_ia(pergunta, resposta):
-    """Atua como o Preceptor Digital verificando a acurácia técnica"""
+def gerar_batch_flashcards(texto, tema, email):
     model = configurar_gemini()
-    prompt = f"""
-    Aja como um revisor técnico da Mayo Clinic.
-    Analise se este flashcard médico está correto e atualizado (2024-2026).
-    Pergunta: {pergunta}
-    Resposta: {resposta}
-    
-    Retorne JSON: {"verificado": true/false, "motivo": "...", "confianca": 0-100}
-    """
+    p = f"Gere 15 flashcards nível residência sobre {tema}. Retorne JSON: p, r, area, subtema."
+    res = model.generate_content([p, texto]).text
     try:
-        res = model.generate_content(prompt).text
-        return json.loads(res.replace('```json', '').replace('```', '').strip())
-    except: return {"verificado": False, "motivo": "Erro na análise", "confianca": 0}
+        cards = json.loads(res.replace('```json', '').replace('```', '').strip())
+        from database import salvar_item_estudo
+        for c in cards:
+            c['criado_por_email'] = email
+            c['is_global'] = True # Salva na biblioteca geral
+            salvar_item_estudo(c)
+        return len(cards)
+    except: return 0
