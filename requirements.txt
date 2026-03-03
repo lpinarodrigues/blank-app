@@ -1,9 +1,9 @@
 streamlit
 supabase
+google-generativeai
+groq
+elevenlabs
+reportlab
 pandas
 numpy
-postgrest
-streamlit-cookies-controller
-reportlab
-reportlab
 plotly
