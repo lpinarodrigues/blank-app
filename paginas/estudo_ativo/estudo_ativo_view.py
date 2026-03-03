@@ -1,65 +1,52 @@
 import streamlit as st
-import google.generativeai as genai
-from database import salvar_flashcard, listar_flashcards, update_score, atualizar_revisao_card
 import pandas as pd
+from database import salvar_flashcard, listar_flashcards, atualizar_revisao_card
+from utils.ia_engine import gerar_cards_cloze
+from utils.audio_engine import alertar_seguranca_voce # Reutilizando motor ElevenLabs
 
 def show():
-    st.markdown("### 📚 Master Study | Inteligência de Retenção")
+    st.markdown("### 🧬 Master Study | Global Elite Edition")
     email = st.session_state.get('user_email', 'lucas.pina@unifesp.br')
     
-    # 1. Dashboard de Retenção (Inspirado no Brainscape)
-    cards = listar_flashcards(email)
-    cards_hoje = [c for c in cards if pd.to_datetime(c.get('proxima_revisao', '2000-01-01')).date() <= pd.Timestamp.now().date()]
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total de Cards", len(cards))
-    col2.metric("Para Revisar", len(cards_hoje), delta_color="inverse")
-    col3.metric("Domínio Médio", "72%")
+    aba1, aba2 = st.tabs(["🔥 Sessão de Estudo", "🧪 Laboratório de Cards"])
 
-    st.divider()
-    
-    tab1, tab2, tab3 = st.tabs(["🔥 Revisão Inteligente", "🧠 Gerador de Questões", "📊 Deck Completo"])
-
-    with tab1:
-        if not cards_hoje:
-            st.success("🎉 Deck limpo! Você está em dia com suas sinapses.")
-            st.balloons()
+    with aba1:
+        cards = listar_flashcards(email)
+        if not cards:
+            st.info("Deck vazio. Gere novos cards no Laboratório!")
         else:
-            card = cards_hoje[0] # Pega o primeiro da fila
-            st.markdown(f"**CATEGORIA:** `{card.get('categoria', 'Geral')}`")
+            # Seleção de Card com Algoritmo de Repetição
+            card = cards[0] 
             
             with st.container(border=True):
-                st.markdown(f"### {card['pergunta']}")
+                st.caption(f"Categoria: {card.get('categoria', 'Geral')}")
+                st.subheader(card['pergunta']) # Aqui entra o Cloze [...]
                 
-                if st.button("👁️ Revelar Resposta"):
-                    st.markdown(f"--- \n **RESPOSTA:** \n {card['resposta']}")
-                    
-                    st.markdown("Como foi sua lembrança?")
-                    cols = st.columns(4)
-                    botoes = [("❌ Errei", 1, "red"), ("⚠️ Difícil", 3, "orange"), ("✅ Bom", 4, "blue"), ("⚡ Fácil", 5, "green")]
-                    
-                    for i, (label, qual, color) in enumerate(botoes):
-                        if cols[i].button(label, key=f"btn_{qual}"):
-                            atualizar_revisao_card(card['id'], qual)
-                            update_score(email, qual * 2)
-                            st.rerun()
+                col_audio, col_reveal = st.columns([1, 4])
+                with col_audio:
+                    if st.button("🔊 Ouvir"):
+                        audio = alertar_seguranca_voce(card['pergunta'])
+                        if audio: st.audio(audio)
+                
+                with col_reveal:
+                    if st.button("Revelar Resposta (Espaço)", use_container_width=True):
+                        st.markdown(f"### ✅ {card['resposta']}")
+                        st.info(f"💡 Dica Clínica: {card.get('explicacao', 'Consulte a diretriz SBC 2024.')}")
+                        
+                        st.divider()
+                        st.markdown("Qual seu nível de domínio?")
+                        qualidades = [("Esqueci (1d)", 1), ("Difícil (3d)", 3), ("Bom (7d)", 4), ("Fácil (15d)", 5)]
+                        cols = st.columns(4)
+                        for i, (label, val) in enumerate(qualidades):
+                            if cols[i].button(label):
+                                atualizar_revisao_card(card['id'], val)
+                                st.rerun()
 
-    with tab2:
-        st.subheader("Gerador de Questões Padrão TEC/SBC")
-        tema = st.text_input("Tema para novos cards:", placeholder="Ex: Valvopatias Mitrais...")
-        if st.button("Gerar 10 Cards de Elite ⚡"):
-            with st.spinner("IA simulando banca examinadora..."):
-                genai.configure(api_key=st.secrets["GEMINI_CHAVE_2"])
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                prompt = f"Gere 5 flashcards de alto nível sobre {tema} para residentes. Formato P: pergunta | R: resposta curta."
-                res = model.generate_content(prompt).text
-                for linha in res.split('\n'):
-                    if '|' in linha:
-                        p, r = linha.split('|')
-                        salvar_flashcard(p.replace('P:','').strip(), r.replace('R:','').strip(), tema, email)
-                st.success("Cards integrados ao seu algoritmo de repetição!")
-
-    with tab3:
-        if cards:
-            df_cards = pd.DataFrame(cards)[['pergunta', 'categoria', 'intervalo', 'revisões_totais']]
-            st.dataframe(df_cards, use_container_width=True, hide_index=True)
+    with aba2:
+        st.subheader("Gerador de Cloze Deletion (USMLE Style)")
+        tema_input = st.text_input("Tema:", placeholder="Ex: Choque Cardiogênico")
+        if st.button("Gerar 5 Cards de Alta Retenção ⚡"):
+            novos_cards = gerar_cards_cloze(tema_input)
+            for nc in novos_cards:
+                salvar_flashcard(nc['texto_omissao'], nc['resposta'], tema_input, email)
+            st.success(f"{len(novos_cards)} cards adicionados ao seu cérebro digital.")

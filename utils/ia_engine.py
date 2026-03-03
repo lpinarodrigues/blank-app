@@ -1,33 +1,21 @@
 import streamlit as st
 import google.generativeai as genai
-from groq import Groq
-import random
+import json
 
-def consultar_core_ia_perfeicao(prompt, modo="Beira de Leito"):
-    # Configuração do Prompt Sistêmico (DNA Dante Pazzanese/UpToDate)
-    instrucao = f"""
-    Aja como um Preceptor Sênior de Cardiologia. 
-    Sua resposta deve seguir o padrão de medicina baseada em evidências.
-    MODO: {modo}
+def gerar_cards_cloze(tema):
+    genai.configure(api_key=st.secrets["GEMINI_CHAVE_2"])
+    model = genai.GenerativeModel('gemini-1.5-pro')
     
-    REGRAS OBRIGATÓRIAS:
-    1. Sempre cite a Classe de Recomendação (Ex: Classe I) e Nível de Evidência (Ex: Nível A).
-    2. Identifique contraindicações críticas.
-    3. Cite a fonte (Ex: Diretriz SBC 2024, ESC 2023).
-    4. No modo 'Beira de Leito', use listas curtas. No modo 'Acadêmico', seja exaustivo.
+    prompt = f"""
+    Aja como um designer de questões do USMLE Step 2.
+    Gere 5 flashcards de 'Cloze Deletion' sobre {tema}.
+    O Cloze Deletion deve ocultar a informação MAIS importante entre colchetes [...].
+    
+    Exemplo: "A tríade de Beck consiste em hipofonese de bulhas, turgência jugular e [...]" -> "hipotensão".
+    
+    Retorne apenas JSON: [{{"texto_omissao": "sentença com [...]", "resposta": "palavra oculta", "explicacao": "por que isso ocorre"}}]
     """
-    
+    res = model.generate_content(prompt).text
     try:
-        # Uso do Groq para velocidade de raciocínio lógico
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        res_groq = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": instrucao},
-                {"role": "user", "content": prompt}
-            ],
-        ).choices[0].message.content
-
-        return res_groq, "✅ Fontes: SBC/ESC/AHA Processadas."
-    except Exception as e:
-        return f"Erro na análise: {e}", "⚠️ Falha de conexão."
+        return json.loads(res.replace('```json', '').replace('```', '').strip())
+    except: return []
