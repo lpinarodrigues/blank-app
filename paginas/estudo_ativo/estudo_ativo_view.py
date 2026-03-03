@@ -1,72 +1,79 @@
 import streamlit as st
 import pandas as pd
-import time
-from database import listar_flashcards, atualizar_revisao_card, obter_estatisticas_estudo
+from database import filtrar_banco_elite, atualizar_progresso_sm2, obter_estatisticas_estudo
+from utils.ia_engine import dissecar_arquivo_master
 
 def show():
-    st.markdown("### 🧬 Master Study | Centro de Retenção")
+    st.markdown("### 🧬 Master Study | Padrão Ouro Internacional")
     email = st.session_state.get('user_email', 'lucas.pina@unifesp.br')
     
-    # --- LOGICA DE DADOS REAIS ---
-    df_stats = obter_estatisticas_estudo(email)
-    cards = listar_flashcards(email)
-    
-    # 1. NAVIGATION DE ALTO NÍVEL (Abas que funcionam)
-    aba_praticar, aba_resumos, aba_questoes = st.tabs(["🔥 Praticar (Flashcards)", "📚 Caderno de Resumos", "📝 Gerador de Provas"])
+    # 1. NAVEGAÇÃO REAL
+    aba_revisao, aba_simulado, aba_upload = st.tabs(["🔥 Revisão Ativa", "📝 Simulados por Tema", "📤 Dissecador de PDFs"])
 
-    with aba_praticar:
+    with aba_revisao:
+        st.subheader("Flashcards com Repetição Espaçada")
+        cards = filtrar_banco_elite()
         if not cards:
-            st.info("Seu deck está vazio. Vá ao 'Core AI' ou suba um arquivo em 'Simulados' para gerar conhecimento.")
+            st.info("Nenhum card disponível. Use o Dissecador ou o Core AI para povoar seu banco.")
         else:
-            # Filtro de Repetição Espaçada (Algoritmo SM-2)
-            hoje = pd.Timestamp.now().date()
-            cards_hoje = [c for c in cards if pd.to_datetime(c.get('proxima_revisao', '2000-01-01')).date() <= hoje]
-            
-            st.write(f"**Revisões para hoje:** {len(cards_hoje)} cards")
-            
-            if cards_hoje:
-                card = cards_hoje[0]
-                with st.container(border=True):
-                    st.caption(f"Área: {card.get('grande_area', 'Geral')} | Subtema: {card.get('subtema', 'Geral')}")
-                    st.markdown(f"### {card['pergunta']}")
+            card = cards[0] # Lógica de fila
+            with st.container(border=True):
+                st.caption(f"{card['grande_area']} > {card['subtema']}")
+                st.markdown(f"### {card['pergunta']}")
+                
+                if st.button("👁️ Revelar Resposta"):
+                    st.markdown(f"**Gabarito:** {card['resposta']}")
+                    st.info(f"💡 Justificativa: {card.get('explicacao', 'Sem detalhes.')}")
                     
-                    if st.button("👁️ Revelar Resposta", use_container_width=True):
-                        st.markdown(f"**Resposta:** {card['resposta']}")
-                        if card.get('explicacao'):
-                            st.info(f"💡 Justificativa: {card['explicacao']}")
-                        
-                        st.divider()
-                        st.write("Qual foi o nível de dificuldade?")
-                        cols = st.columns(4)
-                        btn_labels = [("❌ Esqueci", 1), ("⚠️ Difícil", 3), ("✅ Bom", 4), ("⚡ Fácil", 5)]
-                        for i, (label, val) in enumerate(btn_labels):
-                            if cols[i].button(label):
-                                atualizar_revisao_card(card['id'], val)
-                                st.rerun()
-            else:
-                st.success("🎉 Você completou suas revisões diárias!")
+                    st.divider()
+                    cols = st.columns(4)
+                    labels = [("❌ Esqueci", 1), ("⚠️ Difícil", 3), ("✅ Bom", 4), ("⚡ Fácil", 5)]
+                    for i, (l, v) in enumerate(labels):
+                        if cols[i].button(l):
+                            atualizar_progresso_sm2(card['id'], v)
+                            st.rerun()
 
-    with aba_resumos:
-        st.subheader("📖 Seus Resumos Estruturados")
-        if not df_stats.empty:
-            areas = df_stats['grande_area'].unique()
-            selecao = st.selectbox("Filtrar por Área:", areas)
-            
-            resumos_area = df_stats[df_stats['grande_area'] == selecao]
-            for _, row in resumos_area.iterrows():
-                with st.expander(f"📍 {row['subtema']} - Revisões: {row['revisões_totais']}"):
-                    st.write(f"**Facilidade do Tema:** {row['facilidade']}/5.0")
-                    st.progress(min(row['facilidade']/5.0, 1.0))
-        else:
-            st.warning("Nenhum resumo gerado ainda. Use a IA para converter casos clínicos em resumos.")
-
-    with aba_questoes:
-        st.subheader("📝 Simulado Personalizado")
+    with aba_simulado:
+        st.subheader("Gerador de Provas por Área")
         col1, col2 = st.columns(2)
-        area_sim = col1.selectbox("Eixo Principal:", ["Clínica Médica", "Cirurgia", "Pediatria", "Preventiva"])
-        qtd = col2.slider("Quantidade de Questões:", 5, 50, 10)
+        area = col1.selectbox("Grande Área:", ["Todas", "Clínica Médica", "Cirurgia Geral", "Pediatria", "GO", "Preventiva"])
+        sub = col2.selectbox("Subtema:", ["Todos", "Cardiologia", "Gastro", "Trauma", "Pneumologia"])
         
-        if st.button("Iniciar Simulado de Elite 🚀"):
-            st.session_state.modo_simulado = True
-            st.write(f"Gerando {qtd} questões de {area_sim} com base no seu histórico de erros...")
-            # Lógica de geração dinâmica aqui
+        if st.button("Iniciar Simulado do Banco 🚀"):
+            questoes = filtrar_banco_elite(area, sub)
+            if questoes:
+                st.success(f"Encontradas {len(questoes)} questões no banco de Big Data.")
+                for q in questoes[:5]:
+                    with st.container(border=True):
+                        st.write(q['pergunta'])
+                        st.radio("Alternativas:", ["A", "B", "C", "D"], key=f"q_{q['id']}")
+            else:
+                st.warning("Sem questões para este filtro específico.")
+
+    with aba_upload:
+        st.subheader("Transformar PDF em Simulado de Elite")
+        arquivo = st.file_uploader("Suba sua Diretriz ou Capítulo (PDF):", type=['pdf', 'txt'])
+        if arquivo:
+            area_up = st.selectbox("Área deste arquivo:", ["Cirurgia Geral", "Clínica Médica"])
+            sub_up = st.text_input("Subtema (ex: Valvopatias):")
+            
+            if st.button("Dissecar e Gerar Prova ⚡"):
+                with st.spinner("IA transformando PDF em questões padrão TEC..."):
+                    conteudo = arquivo.read().decode("utf-8", errors="ignore")
+                    questoes = dissecar_arquivo_master(conteudo, area_up, sub_up)
+                    if questoes:
+                        st.session_state.questoes_pdf = questoes
+                        st.success("Simulado gerado com sucesso!")
+        
+        if 'questoes_pdf' in st.session_state:
+            for i, q in enumerate(st.session_state.questoes_pdf):
+                with st.expander(f"Questão {i+1}: {q['pergunta'][:50]}..."):
+                    st.markdown(f"**{q['pergunta']}**")
+                    ans = st.radio(f"Sua resposta (Q{i}):", ["A", "B", "C", "D"], key=f"ans_{i}")
+                    if st.button(f"Validar Q{i}"):
+                        if ans == q['gabarito']:
+                            st.success(f"✅ Correto! {q['explica_correta']}")
+                        else:
+                            st.error(f"❌ Errado. O correto é {q['gabarito']}.")
+                            st.markdown(f"**Por que você errou a {ans}:** {q['explica_erros'].get(ans)}")
+                            st.warning(f"📚 **Reforce:** {q['reforco']}")
