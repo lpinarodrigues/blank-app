@@ -1,21 +1,28 @@
 import streamlit as st
 import google.generativeai as genai
 import json
+from database import salvar_flashcard
 
-def gerar_cards_cloze(tema):
+def gerar_batch_flashcards(texto_contexto, tema, email):
     genai.configure(api_key=st.secrets["GEMINI_CHAVE_2"])
     model = genai.GenerativeModel('gemini-1.5-pro')
     
     prompt = f"""
-    Aja como um designer de questões do USMLE Step 2.
-    Gere 5 flashcards de 'Cloze Deletion' sobre {tema}.
-    O Cloze Deletion deve ocultar a informação MAIS importante entre colchetes [...].
+    Com base no contexto médico abaixo, gere 15 flashcards de ALTO NÍVEL (padrão residência médica).
+    Contexto: {texto_contexto}
+    Tema: {tema}
     
-    Exemplo: "A tríade de Beck consiste em hipofonese de bulhas, turgência jugular e [...]" -> "hipotensão".
-    
-    Retorne apenas JSON: [{{"texto_omissao": "sentença com [...]", "resposta": "palavra oculta", "explicacao": "por que isso ocorre"}}]
+    REGRAS:
+    - Mescle perguntas diretas (P/R) e Cloze Deletion [...].
+    - Foque em: Critérios diagnósticos, Doses de escolha, Complicações cirúrgicas e Condutas 'Red Flag'.
+    - Formato JSON estrito: [{{"p": "pergunta", "r": "resposta", "explicacao": "base científica"}}]
     """
-    res = model.generate_content(prompt).text
+    
     try:
-        return json.loads(res.replace('```json', '').replace('```', '').strip())
-    except: return []
+        res = model.generate_content(prompt).text
+        cards = json.loads(res.replace('```json', '').replace('```', '').strip())
+        for c in cards:
+            salvar_flashcard(c['p'], c['r'], tema, email, c['explicacao'])
+        return len(cards)
+    except:
+        return 0
