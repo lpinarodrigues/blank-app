@@ -74,3 +74,15 @@ def salvar_flashcard_estruturado(p, r, area, subtema, tema, email, exp="", nivel
         "subtema": subtema, "categoria": tema, "criado_por_email": email, 
         "explicacao": exp, "complexidade": nivel
     })
+
+def adotar_item_global(item_id, novo_email):
+    """Copia um item da Biblioteca Global para a Biblioteca Pessoal do usuário"""
+    item = get_supabase().table("flashcards").select("*").eq("id", item_id).single().execute().data
+    del item['id']
+    del item['created_at']
+    item['criado_por_email'] = novo_email
+    item['is_global'] = False
+    get_supabase().table("flashcards").insert(item).execute()
+
+def listar_biblioteca_global(tipo="flashcard"):
+    return get_supabase().table("flashcards").select("*").eq("is_global", True).execute().data
