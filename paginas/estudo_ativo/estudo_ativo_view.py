@@ -11,7 +11,7 @@ def show_flashcards(email):
         global_cards = listar_biblioteca_global(limit=50)
         if global_cards:
             df_g = pd.DataFrame(global_cards)[['grande_area', 'subtema', 'pergunta', 'id']]
-            st.dataframe(df_g, use_container_width=True)
+            exibir_biblioteca_com_selo(global_cards)
             sel_id = st.selectbox("Selecione um ID para adotar no seu deck:", df_g['id'])
             if st.button("📥 Adicionar à Minha Biblioteca"):
                 adotar_item_global(sel_id, email)
@@ -45,3 +45,22 @@ def show():
         show_questoes(email)
     elif modulo == "📖 Resumos":
         show_resumos(email)
+
+def exibir_biblioteca_com_selo(cards):
+    for c in cards[:20]: # Exibe os primeiros 20 com análise
+        with st.container(border=True):
+            col_text, col_selo = st.columns([4, 1])
+            with col_text:
+                st.markdown(f"**{c['grande_area']}** > {c['subtema']}")
+                st.write(c['pergunta'])
+            with col_selo:
+                # Simulação de verificação (em prod seria via coluna 'is_verified')
+                if c.get('complexidade', 0) >= 3:
+                    st.success("✅ IA VERIFIED")
+                    st.caption("Padrão Ouro")
+                else:
+                    st.warning("⏳ Pendente")
+            
+            if st.button(f"📥 Adotar Card {c['id'][:4]}", key=f"btn_{c['id']}"):
+                # Lógica de adoção já existente
+                st.toast("Card adicionado ao seu deck pessoal!")

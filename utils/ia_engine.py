@@ -28,3 +28,19 @@ def dissecar_arquivo_master(conteudo, area, subtema):
     try:
         return json.loads(res.replace('```json', '').replace('```', '').strip())
     except: return []
+
+def validar_card_com_ia(pergunta, resposta):
+    """Atua como o Preceptor Digital verificando a acurácia técnica"""
+    model = configurar_gemini()
+    prompt = f"""
+    Aja como um revisor técnico da Mayo Clinic.
+    Analise se este flashcard médico está correto e atualizado (2024-2026).
+    Pergunta: {pergunta}
+    Resposta: {resposta}
+    
+    Retorne JSON: {"verificado": true/false, "motivo": "...", "confianca": 0-100}
+    """
+    try:
+        res = model.generate_content(prompt).text
+        return json.loads(res.replace('```json', '').replace('```', '').strip())
+    except: return {"verificado": False, "motivo": "Erro na análise", "confianca": 0}
