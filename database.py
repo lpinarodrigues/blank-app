@@ -66,3 +66,32 @@ def salvar_handoff(email, leito, quadro, sbar, flags):
 
 def listar_ultimos_handoffs():
     return get_supabase().table("plantao_handoff").select("*").order("created_at", desc=True).limit(10).execute().data
+
+def atualizar_revisao_card(card_id, qualidade):
+    """
+    Qualidade: 0 (Esqueci total) a 5 (Perfeito)
+    Ajusta o intervalo de repetição espaçada.
+    """
+    supabase = get_supabase()
+    card = supabase.table("flashcards").select("*").eq("id", card_id).single().execute().data
+    
+    facilidade = card.get('facilidade', 2.5)
+    intervalo = card.get('intervalo', 0)
+    
+    if qualidade >= 3:
+        if intervalo == 0: intervalo = 1
+        elif intervalo == 1: intervalo = 6
+        else: intervalo = int(intervalo * facilidade)
+        facilidade = facilidade + (0.1 - (5 - qualidade) * (0.08 + (5 - qualidade) * 0.02))
+    else:
+        intervalo = 1
+        facilidade = max(1.3, facilidade - 0.2)
+        
+    proxima = (pd.Timestamp.now() + pd.Timedelta(days=intervalo)).isoformat()
+    
+    supabase.table("flashcards").update({
+        "facilidade": facilidade,
+        "intervalo": intervalo,
+        "proxima_revisao": proxima,
+        "revisões_totais": card.get('revisões_totais', 0) + 1
+    }).eq("id", card_id).execute()
