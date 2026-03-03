@@ -31,3 +31,26 @@ def registrar_performance(email, respondidas, acertos):
     get_supabase().table("resultados_performance").insert({
         "user_email": email, "questoes_respondidas": respondidas, "acertos": acertos, "aproveitamento_percent": percent
     }).execute()
+
+def obter_ranking_elite():
+    supabase = get_supabase()
+    # Puxa a performance agregada por usuário
+    res = supabase.table("resultados_performance").select("user_email, acertos, questoes_respondidas").execute()
+    if not res.data:
+        return []
+    
+    # Agregação simples para o Ranking
+    ranking = {}
+    for r in res.data:
+        email = r['user_email']
+        if email not in ranking:
+            ranking[email] = {"acertos": 0, "total": 0}
+        ranking[email]["acertos"] += r['acertos']
+        ranking[email]["total"] += r['questoes_respondidas']
+    
+    lista_ranking = []
+    for email, dados in ranking.items():
+        aproveitamento = (dados["acertos"] / dados["total"] * 100) if dados["total"] > 0 else 0
+        lista_ranking.append({"email": email, "aproveitamento": round(aproveitamento, 1), "total": dados["total"]})
+    
+    return sorted(lista_ranking, key=lambda x: x['aproveitamento'], reverse=True)
