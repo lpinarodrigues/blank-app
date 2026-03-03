@@ -6,15 +6,19 @@ import pandas as pd
 def get_supabase():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
-# --- 1. AUTENTICAÇÃO ---
+# --- 1. AUTENTICAÇÃO (NOMES PADRONIZADOS) ---
 def validar_login(email, senha):
     try:
         res = get_supabase().table("membros_core").select("*").eq("email", email).eq("senha", senha).execute()
         return res.data[0] if res.data else None
     except: return None
 
-def criar_usuario(nome, email, senha):
+def cadastrar_membro(nome, email, senha):
     try:
+        # Verifica se já existe
+        check = get_supabase().table("membros_core").select("email").eq("email", email).execute()
+        if check.data:
+            return False
         get_supabase().table("membros_core").insert({"nome": nome, "email": email, "senha": senha, "score": 0}).execute()
         return True
     except: return False
@@ -38,13 +42,17 @@ def obter_ranking_elite():
         return res.data if res.data else []
     except: return []
 
-# --- 3. ESTUDOS E HIERARQUIA (PADRÃO OURO) ---
+# --- 3. ESTUDOS E HIERARQUIA ---
 def salvar_flashcard_estruturado(p, r, area, subtema, tema, email, exp="", nivel=2):
     get_supabase().table("flashcards").insert({
         "pergunta": p, "resposta": r, "grande_area": area,
         "subtema": subtema, "categoria": tema, "criado_por_email": email, 
         "explicacao": exp, "complexidade": nivel
     }).execute()
+
+def salvar_flashcard(p, r, cat, email):
+    # Fallback para chamadas simples
+    salvar_flashcard_estruturado(p, r, "Geral", "Geral", cat, email)
 
 def listar_flashcards(email):
     try:
@@ -53,9 +61,10 @@ def listar_flashcards(email):
     except: return []
 
 def atualizar_revisao_card(card_id, qualidade):
-    # Lógica de repetição espaçada simplificada no DB
     get_supabase().table("flashcards").update({"revisões_totais": 1}).eq("id", card_id).execute()
 
-# Função genérica de flashcards (compatibilidade)
-def salvar_flashcard(p, r, cat, email):
-    salvar_flashcard_estruturado(p, r, "Geral", "Geral", cat, email)
+# --- 4. GESTÃO DE QUESTÕES ---
+def salvar_questao_banco(dados):
+    try:
+        get_supabase().table("questionarios").insert(dados).execute()
+    except: pass
