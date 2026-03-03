@@ -8,7 +8,7 @@ def show_flashcards(email):
     
     with sub_tab3:
         st.caption("Cards compartilhados pela elite CORE NEXUS")
-        global_cards = listar_biblioteca_global()
+        global_cards = listar_biblioteca_global(limit=50)
         if global_cards:
             df_g = pd.DataFrame(global_cards)[['grande_area', 'subtema', 'pergunta', 'id']]
             st.dataframe(df_g, use_container_width=True)
