@@ -16,39 +16,64 @@ def configurar_gemini():
     return None
 
 def consultar_core_ia_perfeicao(prompt):
-    model = configurar_gemini()
     instrucao = """
     Aja como Preceptor Sênior. Estrutura:
     1. 💊 Conduta Imediata
-    2. 📈 Escores
+    2. 📈 Escores e Critérios
     3. 🩺 Caso Clínico Simulado
     4. ⚠️ Red Flags
-    5. 📚 Referências REAIS em formato VANCOUVER.
+    5. 📚 Referências REAIS (VANCOUVER).
     
-    No final da sua resposta, adicione OBRIGATORIAMENTE uma linha neste formato exato para o sistema classificar:
+    Adicione OBRIGATORIAMENTE no final esta exata linha:
     TAGS_GERADAS: [Grande Área] | [Subtema]
-    Exemplo: TAGS_GERADAS: Clínica Médica | Cardiologia
     """
-    if model:
+    
+    # 1. TENTATIVA GROQ (Motor Principal - Ideal para Casos Clínicos sem censura)
+    try:
+        from groq import Groq
+        client = Groq(api_key=st.secrets.get("GROQ_API_KEY", ""))
+        res = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": instrucao},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3
+        ).choices[0].message.content
+        
+        # Extração Perfeita de Tags
+        if "TAGS_GERADAS:" in res:
+            partes = res.split("TAGS_GERADAS:")
+            texto_principal = partes[0].strip()
+            tags = partes[1].split("|")
+            area = tags[0].strip() if len(tags) > 0 else "Geral"
+            subtema = tags[1].strip() if len(tags) > 1 else "Geral"
+        else:
+            texto_principal, area, subtema = res, "Clínica Médica", "Geral"
+            
+        return texto_principal, area, subtema
+        
+    except Exception as e_groq:
+        # 2. TENTATIVA GEMINI (Fallback)
         try:
-            res = model.generate_content(f"{instrucao}\n\nPergunta: {prompt}").text
-            area, subtema = "Geral", "Geral"
-            if "TAGS_GERADAS:" in res:
-                partes = res.split("TAGS_GERADAS:")
-                texto_principal = partes[0].strip()
-                tags = partes[1].split("|")
-                if len(tags) >= 2:
-                    area = tags[0].strip()
-                    subtema = tags[1].strip()
-            else:
-                texto_principal = res
-            return texto_principal, area, subtema
-        except: return "Erro na IA.", "Geral", "Geral"
-    return "Erro nas Chaves.", "Geral", "Geral"
+            model = configurar_gemini()
+            if model:
+                res = model.generate_content(f"{instrucao}\n\nPergunta: {prompt}").text
+                if "TAGS_GERADAS:" in res:
+                    partes = res.split("TAGS_GERADAS:")
+                    texto_principal = partes[0].strip()
+                    tags = partes[1].split("|")
+                    area = tags[0].strip() if len(tags) > 0 else "Geral"
+                    subtema = tags[1].strip() if len(tags) > 1 else "Geral"
+                else:
+                    texto_principal, area, subtema = res, "Clínica Médica", "Geral"
+                return texto_principal, area, subtema
+        except Exception as e_gemini:
+            return f"Erro nos motores de IA. \nGroq: {e_groq}\nGemini: {e_gemini}", "Erro", "Erro"
 
 def gerar_apenas_flashcards(texto, area, subtema, email):
     model = configurar_gemini()
-    prompt = f"Gere 3 flashcards médicos baseados no texto. Retorne apenas JSON: [{{'p': 'pergunta', 'r': 'resposta'}}]. Texto: {texto}"
+    prompt = f"Gere 3 flashcards baseados no texto. Retorne apenas JSON: [{{\"p\": \"pergunta\", \"r\": \"resposta\"}}]. Texto: {texto}"
     try:
         res = model.generate_content(prompt).text
         dados = json.loads(res.replace('```json', '').replace('```', '').strip())
@@ -63,7 +88,7 @@ def gerar_apenas_flashcards(texto, area, subtema, email):
 
 def gerar_apenas_questoes(texto, area, subtema, email):
     model = configurar_gemini()
-    prompt = f"Gere 2 questões de múltipla escolha (padrão residência) baseadas no texto. Retorne apenas JSON: [{{'pergunta': '', 'a': '', 'b': '', 'c': '', 'd': '', 'gabarito': 'A', 'justificativa': ''}}]. Texto: {texto}"
+    prompt = f"Gere 2 questões ABCD. JSON: [{{\"pergunta\": \"\", \"a\": \"\", \"b\": \"\", \"c\": \"\", \"d\": \"\", \"gabarito\": \"A\", \"justificativa\": \"\"}}]. Texto: {texto}"
     try:
         res = model.generate_content(prompt).text
         dados = json.loads(res.replace('```json', '').replace('```', '').strip())
@@ -82,11 +107,19 @@ def gerar_pdf_resposta(texto):
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     p.setFont("Helvetica-Bold", 14)
-    p.drawString(50, 750, "CORE NEXUS - Documento de Conduta")
+    p.drawString(50, 750, "CORE NEXUS - Relatório de Conduta Clínica")
     p.setFont("Helvetica", 10)
+    
     textobject = p.beginText(50, 730)
-    for line in texto.split('\n'):
-        textobject.textLine(line[:110]) # Limita tamanho da linha
+    # Limpeza básica do texto para não quebrar o PDF
+    texto_limpo = texto.replace('**', '').replace('💊', '').replace('🩺', '').replace('⚠️', '').replace('📈', '').replace('📚', '')
+    for line in texto_limpo.split('\n'):
+        # Quebra de linha simples para caber na página
+        while len(line) > 100:
+            textobject.textLine(line[:100])
+            line = line[100:]
+        textobject.textLine(line)
+        
     p.drawText(textobject)
     p.showPage()
     p.save()
