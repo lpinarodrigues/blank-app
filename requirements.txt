@@ -5,3 +5,4 @@ numpy
 postgrest
 streamlit-cookies-controller
 reportlab
+reportlab

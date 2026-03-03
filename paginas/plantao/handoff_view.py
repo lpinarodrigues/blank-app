@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import json
 from database import salvar_handoff, listar_ultimos_handoffs
+from utils.pdf_generator import gerar_pdf_sbar
 
 def processar_sbar_ia(texto):
     genai.configure(api_key=st.secrets["GEMINI_CHAVE_2"])
@@ -10,7 +11,7 @@ def processar_sbar_ia(texto):
     Aja como um preceptor de UTI. Transforme este relato clínico no formato SBAR (Situation, Background, Assessment, Recommendation).
     Identifique também possíveis RED FLAGS (riscos iminentes).
     Texto: {texto}
-    Retorne em JSON: {{"situation": "", "background": "", "assessment": "", "recommendation": "", "red_flags": ""}}
+    Retorne apenas JSON: {{"situation": "", "background": "", "assessment": "", "recommendation": "", "red_flags": ""}}
     """
     res = model.generate_content(prompt).text
     try:
@@ -23,22 +24,29 @@ def show():
     
     with st.expander("📝 Nova Passagem (Handoff)", expanded=True):
         leito = st.text_input("Leito/Iniciais do Paciente:")
-        relato = st.text_area("Relato Clínico (Dite ou Escreva):", height=150, placeholder="Ex: Paciente no 402B, pós-operatório de troca valvar, evoluindo com hipotensão...")
+        relato = st.text_area("Relato Clínico:", height=150)
         
-        if st.button("Gerar SBAR e Validar ⚡"):
-            with st.spinner("IA estruturando passagem segura..."):
+        if st.button("Gerar e Validar ⚡"):
+            with st.spinner("IA estruturando..."):
                 sbar = processar_sbar_ia(relato)
                 if sbar:
-                    st.success("Estrutura SBAR Gerada!")
-                    st.json(sbar)
                     salvar_handoff(email, leito, relato, sbar, sbar['red_flags'])
-                    if sbar['red_flags']:
-                        st.error(f"🚨 RED FLAG: {sbar['red_flags']}")
-    
+                    st.session_state['ultimo_sbar'] = {"paciente_leito": leito, "sbar_json": sbar, "red_flags": sbar['red_flags'], "created_at": "Agora"}
+                    st.success("Handoff salvo!")
+
+    if 'ultimo_sbar' in st.session_state:
+        pdf = gerar_pdf_sbar(st.session_state['ultimo_sbar'])
+        st.download_button(
+            label="📄 Baixar PDF do Plantão",
+            data=pdf,
+            file_name=f"handoff_{st.session_state['ultimo_sbar']['paciente_leito']}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
+
     st.divider()
-    st.subheader("📋 Últimos Handoffs da Equipe")
-    historico = listar_ultimos_handoffs()
-    for h in historico:
+    st.subheader("📋 Histórico Recente")
+    for h in listar_ultimos_handoffs():
         with st.container(border=True):
-            st.caption(f"Leito: {h['paciente_leito']} | Por: {h['medico_email']}")
-            st.markdown(f"**Recomendação:** {h['sbar_json'].get('recommendation', '')}")
+            st.markdown(f"**Leito {h['paciente_leito']}**")
+            st.caption(f"Status: {h['sbar_json'].get('situation')}")

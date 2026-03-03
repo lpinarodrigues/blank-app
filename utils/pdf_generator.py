@@ -1,34 +1,38 @@
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-import io
+from io import BytesIO
 
-def gerar_relatorio_pdf(email, score):
-    buffer = io.BytesIO()
+def gerar_pdf_sbar(dados_handoff):
+    buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     
-    # Cabeçalho de Elite
+    # Cabeçalho
     p.setFont("Helvetica-Bold", 16)
-    p.drawString(100, 750, "🛡️ CORE NEXUS - RELATÓRIO DE PERFORMANCE")
-    p.line(100, 745, 500, 745)
+    p.drawString(100, 750, "🛡️ CORE NEXUS - RELATÓRIO DE PASSAGEM DE PLANTÃO")
+    p.setFont("Helvetica", 10)
+    p.drawString(100, 735, f"Leito: {dados_handoff['paciente_leito']} | Data: {dados_handoff['created_at']}")
     
-    # Conteúdo do Médico
-    p.setFont("Helvetica", 12)
-    p.drawString(100, 710, f"Médico: {email}")
-    p.drawString(100, 690, f"Data do Relatório: 02/03/2026")
-    p.drawString(100, 670, f"Instituição: UNIFESP / Dante Pazzanese")
+    # Conteúdo SBAR
+    sbar = dados_handoff['sbar_json']
+    y = 700
+    sections = [
+        ("SITUATION", sbar.get('situation', '')),
+        ("BACKGROUND", sbar.get('background', '')),
+        ("ASSESSMENT", sbar.get('assessment', '')),
+        ("RECOMMENDATION", sbar.get('recommendation', '')),
+        ("RED FLAGS", dados_handoff.get('red_flags', 'Nenhuma detectada'))
+    ]
     
-    # Métricas
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(100, 630, "Métricas de Performance:")
-    p.setFont("Helvetica", 12)
-    p.drawString(120, 610, f"• Core Score Atual: {score} pontos")
-    p.drawString(120, 590, "• Status de Revisão: Em Dia")
-    p.drawString(120, 570, "• Nível de Retenção Estimado: 94%")
-    
-    # Rodapé
-    p.setFont("Helvetica-Oblique", 8)
-    p.drawString(100, 100, "Gerado automaticamente pelo Sistema CORE NEXUS - Medicina Baseada em Evidências.")
-    
+    for title, content in sections:
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(100, y, f"{title}:")
+        p.setFont("Helvetica", 11)
+        # Quebra de linha simples
+        text_obj = p.beginText(100, y - 15)
+        text_obj.textLines(content)
+        p.drawText(text_obj)
+        y -= 80
+        
     p.showPage()
     p.save()
     buffer.seek(0)
