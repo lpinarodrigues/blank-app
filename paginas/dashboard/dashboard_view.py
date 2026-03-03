@@ -1,38 +1,29 @@
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
-import numpy as np
-import sys
-import os
-
-# Garante que a raiz do projeto está no path para achar o database.py
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from database import get_core_score, obter_ranking_elite
-
-def gerar_radar_chart():
-    categories = ['Eletro', 'Valvas', 'Farmaco', 'Semio', 'Emerg', 'Conduta']
-    values = [85, 60, 90, 75, 70, 80]
-    fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(r=values + [values[0]], theta=categories + [categories[0]], fill='toself', line_color='#1E3A8A'))
-    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), showlegend=False, height=300)
-    return fig
+from database import salvar_item_estudo, get_core_score
 
 def show():
     email = st.session_state.get('user_email', 'lucas.pina@unifesp.br')
-    st.title("📊 Dashboard")
+    st.title("📊 Dashboard | CORE NEXUS")
     
+    # BOTÃO MASTER DE INJEÇÃO (Apenas para você)
+    if email == "lucas.pina@unifesp.br":
+        with st.expander("🛠️ PAINEL DE CONTROLE BIG DATA (ADMIN)"):
+            if st.button("🚀 INJETAR 1.000 ITENS DE CARDIOLOGIA (SBC 2026)"):
+                with st.status("Injetando 1.000 itens estruturados..."):
+                    lote = []
+                    for i in range(100): # Injetando o primeiro lote de 100
+                        lote.append({
+                            "pergunta": f"Conduta na Insuficiência Cardíaca Aguda ({i})",
+                            "resposta": "Furosemida IV + Vasodilatador se PAS > 110mmHg.",
+                            "grande_area": "Clínica Médica",
+                            "subtema": "Cardiologia",
+                            "is_global": True,
+                            "explicacao": "Diretriz SBC de IC 2024.",
+                            "criado_por_email": email
+                        })
+                    salvar_item_estudo(lote)
+                    st.success("✅ Carga de Cardio iniciada com sucesso!")
+
     score = get_core_score(email)
     st.metric("Core Score", f"{score} pts")
-    
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.markdown("### Competências")
-        st.plotly_chart(gerar_radar_chart(), use_container_width=True)
-    with col_b:
-        st.markdown("### Atividade")
-        st.bar_chart(np.random.randn(7, 3))
-    
-    st.markdown("### Ranking")
-    ranking = obter_ranking_elite()
-    if ranking:
-        st.table(pd.DataFrame(ranking).head(5))
+    st.write("Bem-vindo ao centro de comando da elite médica.")
