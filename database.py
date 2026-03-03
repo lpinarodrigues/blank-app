@@ -2,24 +2,35 @@ import streamlit as st
 from supabase import create_client
 
 def get_supabase():
-    # Tenta ler do secrets do Streamlit Cloud ou Local
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
-def get_core_score(email):
-    try:
-        supabase = get_supabase()
-        response = supabase.table("usuarios").select("score").eq("email", email).execute()
-        if response.data:
-            return response.data[0]['score']
-        return 0
-    except Exception as e:
-        return 0 # Retorno seguro caso a tabela ainda não exista
-
-def update_score(email, points):
+# --- GESTÃO DE MEMBROS ---
+def validar_login(email, senha):
     supabase = get_supabase()
-    current = get_core_score(email)
-    new_score = current + points
-    supabase.table("usuarios").upsert({"email": email, "score": new_score}).execute()
-    return new_score
+    res = supabase.table("membros_core").select("*").eq("email", email).eq("senha", senha).eq("aprovado", True).execute()
+    return res.data[0] if res.data else None
+
+def cadastrar_membro(nome, email, tel, vinculo, senha):
+    supabase = get_supabase()
+    return supabase.table("membros_core").insert({
+        "nome": nome, "email": email, "tel": tel, "vinculo": vinculo, "senha": senha
+    }).execute()
+
+# --- GESTÃO DE CONTEÚDO ---
+def salvar_flashcard(pergunta, resposta, categoria, email):
+    get_supabase().table("flashcards").insert({
+        "pergunta": pergunta, "resposta": resposta, "categoria": categoria, "criado_por_email": email
+    }).execute()
+
+def listar_questoes(categoria=None):
+    query = get_supabase().table("questionarios").select("*")
+    if categoria:
+        query = query.eq("categoria", categoria)
+    return query.execute().data
+
+# --- PERFORMANCE ---
+def registrar_performance(email, respondidas, acertos):
+    percent = (acertos / respondidas * 100) if respondidas > 0 else 0
+    get_supabase().table("resultados_performance").insert({
+        "user_email": email, "questoes_respondidas": respondidas, "acertos": acertos, "aproveitamento_percent": percent
+    }).execute()
