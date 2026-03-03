@@ -1,27 +1,32 @@
 import streamlit as st
 from utils.ia_engine import consultar_core_ia_perfeicao, gerar_apenas_flashcards, gerar_apenas_questoes, gerar_pdf_resposta
-from database import salvar_item_estudo, salvar_historico_chat, carregar_historico_chat
+from database import salvar_item_estudo, salvar_historico_chat, carregar_historico_chat, mover_para_lixeira
 
 def show():
     email = st.session_state.get('user_email', 'admin@nexus.com')
     
-    # BARRA LATERAL: HISTÓRICO DE CONSULTAS
     with st.sidebar:
         st.subheader("📚 Minhas Consultas")
         historico = carregar_historico_chat(email)
         chat_selecionado = None
-        if historico:
+        
+        # Blindagem extra na interface
+        if isinstance(historico, list) and len(historico) > 0:
             for h in historico:
-                if st.button(f"💬 {h['pergunta'][:25]}...", key=f"hist_{h['id']}", use_container_width=True):
-                    chat_selecionado = h
+                if isinstance(h, dict) and 'pergunta' in h:
+                    col_hist, col_del = st.columns([5, 1])
+                    if col_hist.button(f"💬 {str(h['pergunta'])[:20]}...", key=f"hist_{h.get('id', 'x')}", use_container_width=True):
+                        chat_selecionado = h
+                    # Botão para enviar histórico para a lixeira
+                    if col_del.button("🗑️", key=f"del_{h.get('id', 'x')}", help="Mover para a Lixeira"):
+                        mover_para_lixeira(h['id'])
+                        st.rerun()
         else:
-            st.caption("Nenhum histórico encontrado.")
+            st.caption("Nenhum registo encontrado.")
 
-    st.markdown("### 🧠 Core AI | Consultoria Avançada")
-
+    st.markdown("### 🧠 Core AI | Terminal Clínico Avançado")
     pergunta = st.chat_input("Insira o tema, caso clínico ou dúvida médica...")
     
-    # Lógica de Exibição (Nova Consulta vs Carregar Histórico)
     dados_exibicao = None
 
     if pergunta:
@@ -30,9 +35,8 @@ def show():
             salvar_historico_chat(email, pergunta, resposta, area, subtema)
             dados_exibicao = {"q": pergunta, "a": resposta, "area": area, "subtema": subtema}
     elif chat_selecionado:
-        dados_exibicao = {"q": chat_selecionado['pergunta'], "a": chat_selecionado['resposta'], "area": chat_selecionado['grande_area'], "subtema": chat_selecionado['subtema']}
+        dados_exibicao = {"q": chat_selecionado.get('pergunta', ''), "a": chat_selecionado.get('resposta', ''), "area": chat_selecionado.get('grande_area', ''), "subtema": chat_selecionado.get('subtema', '')}
 
-    # RENDERIZAR O RESULTADO E OS BOTÕES
     if dados_exibicao:
         with st.container(border=True):
             st.markdown(f"**Tema:** {dados_exibicao['q']}")
@@ -44,11 +48,7 @@ def show():
             col1, col2, col3, col4 = st.columns(4)
             
             if col1.button("📥 Salvar nos Resumos", icon="📘"):
-                salvar_item_estudo({
-                    "pergunta": f"Resumo Oficial: {dados_exibicao['q']}", "resposta": dados_exibicao['a'],
-                    "grande_area": dados_exibicao['area'], "subtema": dados_exibicao['subtema'],
-                    "categoria": "Resumo", "is_global": True, "criado_por_email": email
-                })
+                salvar_item_estudo({"pergunta": f"Resumo Oficial: {dados_exibicao['q']}", "resposta": dados_exibicao['a'], "grande_area": dados_exibicao['area'], "subtema": dados_exibicao['subtema'], "categoria": "Resumo", "is_global": True, "criado_por_email": email})
                 st.toast("✅ Enviado para a aba Master Study > Resumos!")
                 
             if col2.button("🎴 Flashcards", icon="⚡"):

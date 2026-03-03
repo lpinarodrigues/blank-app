@@ -1,29 +1,36 @@
 import streamlit as st
-from database import salvar_item_estudo, get_core_score
+from database import get_core_score, listar_lixeira, restaurar_da_lixeira, esvaziar_lixeira
 
 def show():
-    email = st.session_state.get('user_email', 'lucas.pina@unifesp.br')
-    st.title("📊 Dashboard | CORE NEXUS")
+    email = st.session_state.get('user_email', 'admin@nexus.com')
+    st.title("📊 Painel de Controlo | CORE NEXUS")
     
-    # BOTÃO MASTER DE INJEÇÃO (Apenas para você)
-    if email == "lucas.pina@unifesp.br":
-        with st.expander("🛠️ PAINEL DE CONTROLE BIG DATA (ADMIN)"):
-            if st.button("🚀 INJETAR 1.000 ITENS DE CARDIOLOGIA (SBC 2026)"):
-                with st.status("Injetando 1.000 itens estruturados..."):
-                    lote = []
-                    for i in range(100): # Injetando o primeiro lote de 100
-                        lote.append({
-                            "pergunta": f"Conduta na Insuficiência Cardíaca Aguda ({i})",
-                            "resposta": "Furosemida IV + Vasodilatador se PAS > 110mmHg.",
-                            "grande_area": "Clínica Médica",
-                            "subtema": "Cardiologia",
-                            "is_global": True,
-                            "explicacao": "Diretriz SBC de IC 2024.",
-                            "criado_por_email": email
-                        })
-                    salvar_item_estudo(lote)
-                    st.success("✅ Carga de Cardio iniciada com sucesso!")
-
     score = get_core_score(email)
     st.metric("Core Score", f"{score} pts")
-    st.write("Bem-vindo ao centro de comando da elite médica.")
+    
+    st.divider()
+    
+    # --- SISTEMA DE LIXEIRA (RECICLAGEM) ---
+    with st.expander("🗑️ Gestão da Lixeira (Reciclagem)", expanded=False):
+        st.write("Os itens eliminados são guardados aqui por segurança.")
+        itens_lixeira = listar_lixeira(email)
+        
+        if itens_lixeira:
+            col_info, col_btn = st.columns([3, 1])
+            col_info.warning(f"Existem {len(itens_lixeira)} itens na sua lixeira.")
+            
+            if col_btn.button("🔥 Esvaziar Tudo", type="primary"):
+                esvaziar_lixeira(email)
+                st.toast("Lixeira limpa definitivamente!")
+                st.rerun()
+                
+            st.divider()
+            
+            for item in itens_lixeira:
+                c1, c2 = st.columns([4, 1])
+                c1.write(f"📄 {str(item.get('pergunta', 'Sem título'))[:60]}...")
+                if c2.button("Restaurar ♻️", key=f"restaurar_{item.get('id', 'x')}"):
+                    restaurar_da_lixeira(item['id'])
+                    st.rerun()
+        else:
+            st.success("✨ A sua lixeira está completamente vazia.")
