@@ -1,52 +1,72 @@
 import streamlit as st
 import pandas as pd
-from database import salvar_flashcard, listar_flashcards, atualizar_revisao_card
-from utils.ia_engine import gerar_cards_cloze
-from utils.audio_engine import alertar_seguranca_voce # Reutilizando motor ElevenLabs
+from database import listar_flashcards, atualizar_revisao_card, obter_estatisticas_estudo, sugerir_foco_ia
+import time
 
 def show():
-    st.markdown("### 🧬 Master Study | Global Elite Edition")
+    st.markdown("### 🧬 Master Study | Padrão Ouro Internacional")
     email = st.session_state.get('user_email', 'lucas.pina@unifesp.br')
     
-    aba1, aba2 = st.tabs(["🔥 Sessão de Estudo", "🧪 Laboratório de Cards"])
+    # --- BARRA DE PROGRESSO DE RETENÇÃO ---
+    df_stats = obter_estatisticas_estudo(email)
+    if not df_stats.empty:
+        progresso = (df_stats[df_stats['facilidade'] > 2.5].shape[0] / df_stats.shape[0]) * 100
+        st.write(f"**Nível de Retenção de Longo Prazo:** {progresso:.1f}%")
+        st.progress(progresso / 100)
+        
+        tema_foco = sugerir_foco_ia(df_stats)
+        st.warning(f"🎯 **Sugestão da IA:** O teu rendimento em `{tema_foco}` está abaixo da média. Que tal revisar agora?")
 
-    with aba1:
+    st.divider()
+
+    # --- MODO DE ESTUDO FLUIDO (UX BRAINSCAPE) ---
+    tab_estudo, tab_config = st.tabs(["🔥 Sessão Ativa", "⚙️ Gerir Decks"])
+
+    with tab_estudo:
         cards = listar_flashcards(email)
-        if not cards:
-            st.info("Deck vazio. Gere novos cards no Laboratório!")
-        else:
-            # Seleção de Card com Algoritmo de Repetição
-            card = cards[0] 
-            
-            with st.container(border=True):
-                st.caption(f"Categoria: {card.get('categoria', 'Geral')}")
-                st.subheader(card['pergunta']) # Aqui entra o Cloze [...]
-                
-                col_audio, col_reveal = st.columns([1, 4])
-                with col_audio:
-                    if st.button("🔊 Ouvir"):
-                        audio = alertar_seguranca_voce(card['pergunta'])
-                        if audio: st.audio(audio)
-                
-                with col_reveal:
-                    if st.button("Revelar Resposta (Espaço)", use_container_width=True):
-                        st.markdown(f"### ✅ {card['resposta']}")
-                        st.info(f"💡 Dica Clínica: {card.get('explicacao', 'Consulte a diretriz SBC 2024.')}")
-                        
-                        st.divider()
-                        st.markdown("Qual seu nível de domínio?")
-                        qualidades = [("Esqueci (1d)", 1), ("Difícil (3d)", 3), ("Bom (7d)", 4), ("Fácil (15d)", 5)]
-                        cols = st.columns(4)
-                        for i, (label, val) in enumerate(qualidades):
-                            if cols[i].button(label):
-                                atualizar_revisao_card(card['id'], val)
-                                st.rerun()
+        # Filtro de Repetição Espaçada Real
+        hoje = pd.Timestamp.now().date()
+        cards_revisar = [c for c in cards if pd.to_datetime(c.get('proxima_revisao', '2000-01-01')).date() <= hoje]
+        
+        if not cards_revisar:
+            st.success("🎉 Cérebro em Dia! Não tens revisões pendentes para hoje.")
+            if st.button("Forçar Modo 'Cramming' (Estudar tudo)"):
+                cards_revisar = cards
+            else: return
 
-    with aba2:
-        st.subheader("Gerador de Cloze Deletion (USMLE Style)")
-        tema_input = st.text_input("Tema:", placeholder="Ex: Choque Cardiogênico")
-        if st.button("Gerar 5 Cards de Alta Retenção ⚡"):
-            novos_cards = gerar_cards_cloze(tema_input)
-            for nc in novos_cards:
-                salvar_flashcard(nc['texto_omissao'], nc['resposta'], tema_input, email)
-            st.success(f"{len(novos_cards)} cards adicionados ao seu cérebro digital.")
+        # O Card Atual
+        card = cards_revisar[0]
+        
+        # Interface de Card "Clean"
+        with st.container(border=True):
+            st.caption(f"Deck: {card['categoria']} | Revisões: {card.get('revisões_totais', 0)}")
+            st.markdown(f"## {card['pergunta']}")
+            
+            if "revelado" not in st.session_state: st.session_state.revelado = False
+            
+            if not st.session_state.revelado:
+                if st.button("MOSTRAR RESPOSTA (ENTER)", use_container_width=True):
+                    st.session_state.revelado = True
+                    st.rerun()
+            else:
+                st.markdown(f"### ✅ {card['resposta']}")
+                st.info(f"**Explicação Técnica:** {card.get('explicacao', 'Baseado nas últimas diretrizes.')}")
+                
+                st.divider()
+                st.write("Qual foi o teu esforço de memória?")
+                cols = st.columns(5)
+                # Escala de 1 a 5 (Padrão SuperMemo)
+                for i in range(1, 6):
+                    if cols[i-1].button(f"{i}", help=f"1=Esqueci, 5=Perfeito"):
+                        atualizar_revisao_card(card['id'], i)
+                        st.session_state.revelado = False
+                        st.toast(f"Card agendado! +{i*5} pts", icon="🧠")
+                        time.sleep(0.5)
+                        st.rerun()
+
+    with tab_config:
+        st.subheader("Configurações do Algoritmo")
+        st.toggle("Ativar Áudio Automático (ElevenLabs)")
+        st.toggle("Modo USMLE (Apenas Inglês/Português)")
+        if st.button("Limpar Histórico de Revisão"):
+            st.error("Ação irreversível. Tens a certeza?")

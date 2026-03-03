@@ -95,3 +95,14 @@ def atualizar_revisao_card(card_id, qualidade):
         "proxima_revisao": proxima,
         "revisões_totais": card.get('revisões_totais', 0) + 1
     }).eq("id", card_id).execute()
+
+def obter_estatisticas_estudo(email):
+    supabase = get_supabase()
+    res = supabase.table("flashcards").select("categoria, facilidade, revisões_totais").eq("criado_por_email", email).execute()
+    return pd.DataFrame(res.data) if res.data else pd.DataFrame()
+
+def sugerir_foco_ia(df_stats):
+    if df_stats.empty: return "Comece a estudar para gerar dados!"
+    # Identifica categorias com menor 'facilidade' média
+    foco = df_stats.groupby('categoria')['facilidade'].mean().idxmin()
+    return foco
