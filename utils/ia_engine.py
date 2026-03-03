@@ -2,29 +2,26 @@ import streamlit as st
 import google.generativeai as genai
 import json
 
-def processar_arquivo_para_estudo(conteudo_arquivo, email):
+def gerar_conteudo_hierarquico(tema_base):
     genai.configure(api_key=st.secrets["GEMINI_CHAVE_2"])
     model = genai.GenerativeModel('gemini-1.5-pro')
     
     prompt = f"""
-    Aja como um examinador de prova de Título de Especialista.
-    Com base no arquivo fornecido, gere 5 questões de múltipla escolha (A-D) de ALTÍSSIMO NÍVEL.
+    Gere 5 itens de estudo sobre {tema_base}.
+    Classifique OBRIGATORIAMENTE em:
+    - grande_area: (Clínica Médica, Cirurgia, etc)
+    - subtema: (Cardiologia, Gastro, etc)
+    - tema_especifico: (Apendicite, IAM, etc)
+    - complexidade: (1-3)
     
-    PARA CADA QUESTÃO, você DEVE fornecer:
-    1. A resposta correta com justificativa.
-    2. JUSTIFICATIVA PARA CADA DISTRATOR (Por que a B está errada? Por que a C está errada?).
-    3. 'Área de Reforço': O que o aluno deve estudar se errou essa alternativa específica.
-    
-    Retorne em JSON:
+    Retorne JSON:
     [{{
-        "pergunta": "", "opcao_a": "", "opcao_b": "", "opcao_c": "", "opcao_d": "",
-        "gabarito": "A",
-        "justificativa_correta": "",
-        "comentario_distratores": {{"A": "", "B": "", "C": "", "D": ""}},
-        "area_reforco": ""
+        "pergunta": "", "resposta": "", "grande_area": "", 
+        "subtema": "", "tema_especifico": "", "complexidade": 2,
+        "justificativa": ""
     }}]
     """
-    res = model.generate_content([prompt, conteudo_arquivo]).text
+    res = model.generate_content(prompt).text
     try:
         return json.loads(res.replace('```json', '').replace('```', '').strip())
     except: return []
