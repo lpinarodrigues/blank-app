@@ -1,7 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
 import json
-import random
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -16,64 +15,79 @@ def configurar_gemini():
             except: continue
     return None
 
-def consultar_core_ia_perfeicao(prompt, modo="Beira de Leito"):
+def consultar_core_ia_perfeicao(prompt):
     model = configurar_gemini()
     instrucao = """
-    Aja como um Preceptor Médico de Excelência. 
-    Estrutura da Resposta:
-    1. 💊 Conduta Imediata (Linha a linha).
-    2. 📈 Escores e Critérios (Ex: CHA2DS2-VASc, CURB-65).
-    3. 🩺 Caso Clínico Simulado (Breve).
-    4. ⚠️ Red Flags.
+    Aja como Preceptor Sênior. Estrutura:
+    1. 💊 Conduta Imediata
+    2. 📈 Escores
+    3. 🩺 Caso Clínico Simulado
+    4. ⚠️ Red Flags
     5. 📚 Referências REAIS em formato VANCOUVER.
     
-    Proibido citar nomes de instituições ou empresas.
+    No final da sua resposta, adicione OBRIGATORIAMENTE uma linha neste formato exato para o sistema classificar:
+    TAGS_GERADAS: [Grande Área] | [Subtema]
+    Exemplo: TAGS_GERADAS: Clínica Médica | Cardiologia
     """
     if model:
         try:
             res = model.generate_content(f"{instrucao}\n\nPergunta: {prompt}").text
-            return res, "💎 Resposta Estruturada"
-        except: return "Erro no processamento da IA.", "❌ Erro"
-    return "Erro de configuração de chaves.", "❌ Erro"
+            area, subtema = "Geral", "Geral"
+            if "TAGS_GERADAS:" in res:
+                partes = res.split("TAGS_GERADAS:")
+                texto_principal = partes[0].strip()
+                tags = partes[1].split("|")
+                if len(tags) >= 2:
+                    area = tags[0].strip()
+                    subtema = tags[1].strip()
+            else:
+                texto_principal = res
+            return texto_principal, area, subtema
+        except: return "Erro na IA.", "Geral", "Geral"
+    return "Erro nas Chaves.", "Geral", "Geral"
 
-def gerar_batch_flashcards(texto, tema, email):
-    """Gera 10 flashcards e 5 questões baseados no conteúdo"""
+def gerar_apenas_flashcards(texto, area, subtema, email):
     model = configurar_gemini()
-    prompt = f"""
-    Baseado no texto médico abaixo, gere:
-    - 10 Flashcards (p: pergunta, r: resposta)
-    - 5 Questões (pergunta, a, b, c, d, gabarito, justificativa)
-    Retorne APENAS um JSON com as chaves 'flashcards' e 'questoes'.
-    Texto: {texto}
-    """
+    prompt = f"Gere 3 flashcards médicos baseados no texto. Retorne apenas JSON: [{{'p': 'pergunta', 'r': 'resposta'}}]. Texto: {texto}"
     try:
         res = model.generate_content(prompt).text
         dados = json.loads(res.replace('```json', '').replace('```', '').strip())
         from database import salvar_item_estudo
-        
-        count = 0
-        for f in dados.get('flashcards', []):
+        for f in dados:
             salvar_item_estudo({
-                "pergunta": f['p'], "resposta": f['r'], "grande_area": "Geral",
-                "subtema": tema, "is_global": True, "criado_por_email": email
+                "pergunta": f['p'], "resposta": f['r'], "grande_area": area, 
+                "subtema": subtema, "categoria": "Flashcard", "is_global": True, "criado_por_email": email
             })
-            count += 1
-        return count
-    except:
-        return 0
+        return dados
+    except: return []
+
+def gerar_apenas_questoes(texto, area, subtema, email):
+    model = configurar_gemini()
+    prompt = f"Gere 2 questões de múltipla escolha (padrão residência) baseadas no texto. Retorne apenas JSON: [{{'pergunta': '', 'a': '', 'b': '', 'c': '', 'd': '', 'gabarito': 'A', 'justificativa': ''}}]. Texto: {texto}"
+    try:
+        res = model.generate_content(prompt).text
+        dados = json.loads(res.replace('```json', '').replace('```', '').strip())
+        from database import salvar_questao
+        for q in dados:
+            salvar_questao({
+                "pergunta": q['pergunta'], "opcao_a": q['a'], "opcao_b": q['b'], 
+                "opcao_c": q['c'], "opcao_d": q['d'], "gabarito": q['gabarito'], 
+                "explica_correta": q['justificativa'], "grande_area": area, 
+                "subtema": subtema, "is_global": True
+            })
+        return dados
+    except: return []
 
 def gerar_pdf_resposta(texto):
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     p.setFont("Helvetica-Bold", 14)
-    p.drawString(100, 750, "CORE NEXUS - Relatório de Conduta Clínica")
+    p.drawString(50, 750, "CORE NEXUS - Documento de Conduta")
     p.setFont("Helvetica", 10)
-    
-    textobject = p.beginText(100, 730)
+    textobject = p.beginText(50, 730)
     for line in texto.split('\n'):
-        textobject.textLine(line)
+        textobject.textLine(line[:110]) # Limita tamanho da linha
     p.drawText(textobject)
-    
     p.showPage()
     p.save()
     buffer.seek(0)
