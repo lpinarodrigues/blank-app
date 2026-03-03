@@ -10,9 +10,9 @@ if 'autenticado' not in st.session_state:
 # Definir opções de menu baseadas no usuário
 user_email = st.session_state.get('user_email', '')
 if user_email == 'lucas.pina@unifesp.br' or user_email == 'lucas.pina@gmail.br':
-    opcoes = ["📊 Dashboard", "🧠 Core AI", "📚 Master Study", "📝 Simulados", "👤 Perfil", "⚡ Admin"]
+    opcoes = ["📊 Dashboard", "🧠 Core AI", "📚 Master Study", "📝 Simulados", "🚑 Plantão", "👤 Perfil", "⚡ Admin"]
 else:
-    opcoes = ["📊 Dashboard", "🧠 Core AI", "📚 Master Study", "📝 Simulados", "👤 Perfil"]
+    opcoes = ["📊 Dashboard", "🧠 Core AI", "📚 Master Study", "📝 Simulados", "🚑 Plantão", "👤 Perfil"]
 
 if not st.session_state.autenticado:
     from paginas.login import login_view
@@ -32,6 +32,9 @@ else:
         core_ai_view.show()
     elif menu == "📚 Master Study": 
     elif menu == "📝 Simulados":
+    elif menu == "🚑 Plantão":
+        from paginas.plantao import handoff_view
+        handoff_view.show()
         from paginas.simulados import simulados_view
         simulados_view.show()
         from paginas.estudo_ativo import estudo_ativo_view

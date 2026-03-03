@@ -54,3 +54,15 @@ def obter_ranking_elite():
         lista_ranking.append({"email": email, "aproveitamento": round(aproveitamento, 1), "total": dados["total"]})
     
     return sorted(lista_ranking, key=lambda x: x['aproveitamento'], reverse=True)
+
+def salvar_handoff(email, leito, quadro, sbar, flags):
+    get_supabase().table("plantao_handoff").insert({
+        "medico_email": email,
+        "paciente_leito": leito,
+        "quadro_clinico": quadro,
+        "sbar_json": sbar,
+        "red_flags": flags
+    }).execute()
+
+def listar_ultimos_handoffs():
+    return get_supabase().table("plantao_handoff").select("*").order("created_at", desc=True).limit(10).execute().data
