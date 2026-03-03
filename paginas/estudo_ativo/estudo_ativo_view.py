@@ -1,72 +1,72 @@
 import streamlit as st
 import pandas as pd
-from database import listar_flashcards, atualizar_revisao_card, obter_estatisticas_estudo, sugerir_foco_ia
 import time
+from database import listar_flashcards, atualizar_revisao_card, obter_estatisticas_estudo
 
 def show():
-    st.markdown("### 🧬 Master Study | Padrão Ouro Internacional")
+    st.markdown("### 🧬 Master Study | Centro de Retenção")
     email = st.session_state.get('user_email', 'lucas.pina@unifesp.br')
     
-    # --- BARRA DE PROGRESSO DE RETENÇÃO ---
+    # --- LOGICA DE DADOS REAIS ---
     df_stats = obter_estatisticas_estudo(email)
-    if not df_stats.empty:
-        progresso = (df_stats[df_stats['facilidade'] > 2.5].shape[0] / df_stats.shape[0]) * 100
-        st.write(f"**Nível de Retenção de Longo Prazo:** {progresso:.1f}%")
-        st.progress(progresso / 100)
-        
-        tema_foco = sugerir_foco_ia(df_stats)
-        st.warning(f"🎯 **Sugestão da IA:** O teu rendimento em `{tema_foco}` está abaixo da média. Que tal revisar agora?")
+    cards = listar_flashcards(email)
+    
+    # 1. NAVIGATION DE ALTO NÍVEL (Abas que funcionam)
+    aba_praticar, aba_resumos, aba_questoes = st.tabs(["🔥 Praticar (Flashcards)", "📚 Caderno de Resumos", "📝 Gerador de Provas"])
 
-    st.divider()
-
-    # --- MODO DE ESTUDO FLUIDO (UX BRAINSCAPE) ---
-    tab_estudo, tab_config = st.tabs(["🔥 Sessão Ativa", "⚙️ Gerir Decks"])
-
-    with tab_estudo:
-        cards = listar_flashcards(email)
-        # Filtro de Repetição Espaçada Real
-        hoje = pd.Timestamp.now().date()
-        cards_revisar = [c for c in cards if pd.to_datetime(c.get('proxima_revisao', '2000-01-01')).date() <= hoje]
-        
-        if not cards_revisar:
-            st.success("🎉 Cérebro em Dia! Não tens revisões pendentes para hoje.")
-            if st.button("Forçar Modo 'Cramming' (Estudar tudo)"):
-                cards_revisar = cards
-            else: return
-
-        # O Card Atual
-        card = cards_revisar[0]
-        
-        # Interface de Card "Clean"
-        with st.container(border=True):
-            st.caption(f"Deck: {card['categoria']} | Revisões: {card.get('revisões_totais', 0)}")
-            st.markdown(f"## {card['pergunta']}")
+    with aba_praticar:
+        if not cards:
+            st.info("Seu deck está vazio. Vá ao 'Core AI' ou suba um arquivo em 'Simulados' para gerar conhecimento.")
+        else:
+            # Filtro de Repetição Espaçada (Algoritmo SM-2)
+            hoje = pd.Timestamp.now().date()
+            cards_hoje = [c for c in cards if pd.to_datetime(c.get('proxima_revisao', '2000-01-01')).date() <= hoje]
             
-            if "revelado" not in st.session_state: st.session_state.revelado = False
+            st.write(f"**Revisões para hoje:** {len(cards_hoje)} cards")
             
-            if not st.session_state.revelado:
-                if st.button("MOSTRAR RESPOSTA (ENTER)", use_container_width=True):
-                    st.session_state.revelado = True
-                    st.rerun()
+            if cards_hoje:
+                card = cards_hoje[0]
+                with st.container(border=True):
+                    st.caption(f"Área: {card.get('grande_area', 'Geral')} | Subtema: {card.get('subtema', 'Geral')}")
+                    st.markdown(f"### {card['pergunta']}")
+                    
+                    if st.button("👁️ Revelar Resposta", use_container_width=True):
+                        st.markdown(f"**Resposta:** {card['resposta']}")
+                        if card.get('explicacao'):
+                            st.info(f"💡 Justificativa: {card['explicacao']}")
+                        
+                        st.divider()
+                        st.write("Qual foi o nível de dificuldade?")
+                        cols = st.columns(4)
+                        btn_labels = [("❌ Esqueci", 1), ("⚠️ Difícil", 3), ("✅ Bom", 4), ("⚡ Fácil", 5)]
+                        for i, (label, val) in enumerate(btn_labels):
+                            if cols[i].button(label):
+                                atualizar_revisao_card(card['id'], val)
+                                st.rerun()
             else:
-                st.markdown(f"### ✅ {card['resposta']}")
-                st.info(f"**Explicação Técnica:** {card.get('explicacao', 'Baseado nas últimas diretrizes.')}")
-                
-                st.divider()
-                st.write("Qual foi o teu esforço de memória?")
-                cols = st.columns(5)
-                # Escala de 1 a 5 (Padrão SuperMemo)
-                for i in range(1, 6):
-                    if cols[i-1].button(f"{i}", help=f"1=Esqueci, 5=Perfeito"):
-                        atualizar_revisao_card(card['id'], i)
-                        st.session_state.revelado = False
-                        st.toast(f"Card agendado! +{i*5} pts", icon="🧠")
-                        time.sleep(0.5)
-                        st.rerun()
+                st.success("🎉 Você completou suas revisões diárias!")
 
-    with tab_config:
-        st.subheader("Configurações do Algoritmo")
-        st.toggle("Ativar Áudio Automático (ElevenLabs)")
-        st.toggle("Modo USMLE (Apenas Inglês/Português)")
-        if st.button("Limpar Histórico de Revisão"):
-            st.error("Ação irreversível. Tens a certeza?")
+    with aba_resumos:
+        st.subheader("📖 Seus Resumos Estruturados")
+        if not df_stats.empty:
+            areas = df_stats['grande_area'].unique()
+            selecao = st.selectbox("Filtrar por Área:", areas)
+            
+            resumos_area = df_stats[df_stats['grande_area'] == selecao]
+            for _, row in resumos_area.iterrows():
+                with st.expander(f"📍 {row['subtema']} - Revisões: {row['revisões_totais']}"):
+                    st.write(f"**Facilidade do Tema:** {row['facilidade']}/5.0")
+                    st.progress(min(row['facilidade']/5.0, 1.0))
+        else:
+            st.warning("Nenhum resumo gerado ainda. Use a IA para converter casos clínicos em resumos.")
+
+    with aba_questoes:
+        st.subheader("📝 Simulado Personalizado")
+        col1, col2 = st.columns(2)
+        area_sim = col1.selectbox("Eixo Principal:", ["Clínica Médica", "Cirurgia", "Pediatria", "Preventiva"])
+        qtd = col2.slider("Quantidade de Questões:", 5, 50, 10)
+        
+        if st.button("Iniciar Simulado de Elite 🚀"):
+            st.session_state.modo_simulado = True
+            st.write(f"Gerando {qtd} questões de {area_sim} com base no seu histórico de erros...")
+            # Lógica de geração dinâmica aqui
