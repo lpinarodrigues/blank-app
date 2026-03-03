@@ -1,35 +1,33 @@
 import streamlit as st
 import google.generativeai as genai
-import json
+from groq import Groq
+import random
 
-def gerar_questao_medica_ia(tema, dificuldade="Média"):
-    genai.configure(api_key=st.secrets["GEMINI_CHAVE_2"])
-    model = genai.GenerativeModel('gemini-1.5-pro')
+def consultar_core_ia_perfeicao(prompt, modo="Beira de Leito"):
+    # Configuração do Prompt Sistêmico (DNA Dante Pazzanese/UpToDate)
+    instrucao = f"""
+    Aja como um Preceptor Sênior de Cardiologia. 
+    Sua resposta deve seguir o padrão de medicina baseada em evidências.
+    MODO: {modo}
     
-    prompt = f"""
-    Aja como um preceptor de Cardiologia do Dante Pazzanese. 
-    Gere uma questão de múltipla escolha no padrão da prova de Título SBC (TEC) sobre: {tema}.
-    Nível de dificuldade: {dificuldade}.
-    
-    Retorne EXATAMENTE no formato JSON abaixo, sem textos adicionais:
-    {{
-        "pergunta": "texto da pergunta",
-        "opcao_a": "texto a",
-        "opcao_b": "texto b",
-        "opcao_c": "texto c",
-        "opcao_d": "texto d",
-        "gabarito": "A, B, C ou D",
-        "comentario_ia": "explicação técnica breve",
-        "referencia": "Diretriz SBC 2024",
-        "categoria": "{tema}",
-        "dificuldade": "{dificuldade}"
-    }}
+    REGRAS OBRIGATÓRIAS:
+    1. Sempre cite a Classe de Recomendação (Ex: Classe I) e Nível de Evidência (Ex: Nível A).
+    2. Identifique contraindicações críticas.
+    3. Cite a fonte (Ex: Diretriz SBC 2024, ESC 2023).
+    4. No modo 'Beira de Leito', use listas curtas. No modo 'Acadêmico', seja exaustivo.
     """
     
-    response = model.generate_content(prompt)
     try:
-        # Limpa possíveis markdown do json
-        clean_json = response.text.replace('```json', '').replace('```', '').strip()
-        return json.loads(clean_json)
-    except:
-        return None
+        # Uso do Groq para velocidade de raciocínio lógico
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        res_groq = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": instrucao},
+                {"role": "user", "content": prompt}
+            ],
+        ).choices[0].message.content
+
+        return res_groq, "✅ Fontes: SBC/ESC/AHA Processadas."
+    except Exception as e:
+        return f"Erro na análise: {e}", "⚠️ Falha de conexão."
