@@ -36,7 +36,7 @@ def ler_arquivo_texto(arquivo_upload):
             return arquivo_upload.getvalue().decode('utf-8')
     except Exception as e: return ""
 
-def consultar_core_ia_perfeicao(prompt, texto_contexto=""):
+def consultar_core_ia_perfeicao(prompt, texto_contexto="", img_b64=None):
     contexto_adicional = f"\n\n[CONTEXTO DO DOCUMENTO ANEXADO]:\n{texto_contexto[:15000]}" if texto_contexto else ""
     instrucao = """
     Aja como Preceptor Titular de Harvard. LINGUAGEM ESTRITAMENTE TÉCNICA.
