@@ -6,7 +6,7 @@ import base64
 from io import BytesIO
 import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT
 from reportlab.lib import colors
@@ -23,19 +23,19 @@ def configurar_gemini():
 
 def consultar_core_ia_perfeicao(prompt):
     instrucao = """
-    Aja como um Professor Titular de Harvard Medical School.
-    REGRA DE OURO: PROIBIDO TEXTOS LONGOS. Use esquemas, tabelas (Markdown), bullet points e frases curtas de alto impacto.
-    Se o tema tiver subdivisões (Ex: IC Direita vs Esquerda), crie tópicos separados comparando etiologia, clínica e tratamento.
+    Aja como um 'Attending Physician' (Preceptor Titular) de Harvard. 
+    O usuário é um médico residente. USE LINGUAGEM ESTRITAMENTE TÉCNICA (jargão médico avançado, fisiopatologia granular, receptores, farmacodinâmica).
     
     Estrutura VISUAL e OBRIGATÓRIA:
-    1. 📌 VISÃO GRANULAR: O que é e seus Subtipos (Fisiopatologia direta ao ponto).
-    2. 📊 FLUXOGRAMA DE DECISÃO (Passo a Passo):
-       - Passo 1: Avaliação Inicial...
-       - Passo 2: Conduta X se Y...
-    3. ⚖️ TABELA DE DIAGNÓSTICO DIFERENCIAL: Compare a doença alvo com suas principais confundidoras (Sinais clássicos vs Ignorados).
-    4. 🌍 DIRETRIZES COMPARADAS: Diferenças-chave entre Brasil (SBC/AMB), EUA (AHA/ACC) e Europa (ESC).
-    5. ⚠️ RED FLAGS & ARMADILHAS (Pitfalls).
-    6. 📚 REFERÊNCIAS (Vancouver Estrito): Máx 8 anos. Inclua DOI.
+    1. 📌 VISÃO GRANULAR ULTRA-TÉCNICA: Fisiopatologia direta e avançada.
+    2. 📊 FLUXOGRAMA DE DECISÃO: Passo a passo da conduta.
+    3. ⚖️ DIAGNÓSTICO DIFERENCIAL: Compare a doença alvo com confundidoras.
+    4. 📈 ESCORES E CRITÉRIOS (MANDATÓRIO): NUNCA cite um escore (ex: NYHA, TIMI, qSOFA, Wells) sem descrever brevemente seus parâmetros e estratificação de risco. Destrinche o escore.
+    5. ⚠️ RED FLAGS & ARMADILHAS.
+    6. 📖 GLOSSÁRIO RÁPIDO: Defina 3 a 4 termos/siglas ultra-técnicos usados na sua explicação.
+    7. 📚 REFERÊNCIAS: Padrão Vancouver (máx 8 anos).
+    
+    Gere tabelas usando formato Markdown.
     
     Adicione OBRIGATORIAMENTE no final esta exata linha:
     TAGS_GERADAS: [Grande Área] | [Subtema]
@@ -46,7 +46,7 @@ def consultar_core_ia_perfeicao(prompt):
         res = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "system", "content": instrucao}, {"role": "user", "content": prompt}],
-            temperature=0.2 # Mais frio = Mais objetivo e esquemático
+            temperature=0.2 
         ).choices[0].message.content
         
         area, subtema = "Clínica Médica", "Geral"
@@ -95,18 +95,15 @@ def gerar_apenas_questoes(texto, area, subtema, email):
     except: return 0
 
 def add_premium_header_footer(canvas, doc, email):
-    """Cabeçalho e Rodapé de Alto Padrão (Enterprise)"""
     canvas.saveState()
-    # Cabeçalho Fixo
     canvas.setFillColor(colors.HexColor('#0B2D5C'))
-    canvas.rect(0, 740, 612, 52, fill=1, stroke=0) # Barra Azul Topo
+    canvas.rect(0, 740, 612, 52, fill=1, stroke=0)
     canvas.setFillColor(colors.white)
     canvas.setFont('Helvetica-Bold', 18)
     canvas.drawString(40, 760, "CORE NEXUS")
     canvas.setFont('Helvetica', 10)
     canvas.drawString(40, 748, "Clinical Guidelines & Advanced Pathways")
     
-    # Rodapé Invisível/Discreto (Rastreio)
     codigo_rastreio = base64.b64encode(email.encode('utf-8')).decode('utf-8')
     canvas.setFont('Helvetica', 6)
     canvas.setFillGray(0.7)
@@ -119,39 +116,77 @@ def gerar_pdf_resposta(texto, email):
     
     styles = getSampleStyleSheet()
     style_normal = ParagraphStyle('Normal_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=8, fontSize=10, leading=14)
-    style_h2 = ParagraphStyle('Heading2_Premium', parent=styles['Heading2'], textColor=colors.HexColor('#0B2D5C'), spaceBefore=15, spaceAfter=8, fontSize=14, borderPadding=4)
-    style_h3 = ParagraphStyle('Heading3_Sub', parent=styles['Heading3'], textColor=colors.HexColor('#2E86C1'), spaceBefore=10, spaceAfter=5, fontSize=12)
+    # Ajustei os tamanhos das fontes para não ficarem desproporcionais
+    style_h2 = ParagraphStyle('Heading2_Premium', parent=styles['Heading2'], textColor=colors.HexColor('#0B2D5C'), spaceBefore=12, spaceAfter=6, fontSize=13)
+    style_h3 = ParagraphStyle('Heading3_Sub', parent=styles['Heading3'], textColor=colors.HexColor('#2E86C1'), spaceBefore=8, spaceAfter=4, fontSize=11)
     
     story = []
     
-    # Tratamento Avançado de Markdown para o PDF
-    linhas = texto.split('\n')
+    texto_formatado = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', texto)
+    for emoji in ['💊', '🩺', '⚠️', '📈', '📚', '🌍', '⚖️', '📌', '📊', '📖']:
+        texto_formatado = texto_formatado.replace(emoji, '')
+        
+    linhas = texto_formatado.split('\n')
+    
+    # MOTOR DE EXTRAÇÃO DE TABELAS (O segredo do design limpo)
+    table_data = []
+    in_table = False
+    
     for linha in linhas:
         linha = linha.strip()
         if not linha:
+            if in_table and table_data:
+                # Renderiza a tabela bonita com fundo azul e linhas cinzas
+                t = Table(table_data, hAlign='LEFT')
+                t.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0B2D5C')),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,0), 10),
+                    ('BOTTOMPADDING', (0,0), (-1,0), 8),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F8F9F9')),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.grey)
+                ]))
+                story.append(t)
+                story.append(Spacer(1, 10))
+                table_data = []
+                in_table = False
             continue
             
-        # Tratamento de Negritos
-        linha = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', linha)
-        linha = linha.replace('💊', '').replace('🩺', '').replace('⚠️', '').replace('📈', '').replace('📚', '').replace('🌍', '').replace('⚖️', '').replace('📌', '').replace('📊', '')
-        
-        # Parse de Cabeçalhos (H2 e H3)
-        if linha.startswith('### '):
-            story.append(Paragraph(linha.replace('### ', '').strip(), style_h3))
-        elif linha.startswith('## ') or linha.startswith('1. ') or linha.startswith('2. ') or linha.startswith('3. '):
-            story.append(Paragraph(linha.replace('## ', '').strip(), style_h2))
-        elif linha.startswith('- ') or linha.startswith('* '):
-            # Bullet points simulados
-            story.append(Paragraph(f"• {linha[2:]}", style_normal))
-        elif "|" in linha and "---" not in linha:
-            # Captura grosseira de linhas de tabela para não quebrar o design
-            story.append(Paragraph(f"<i>{linha}</i>", style_normal))
-        elif "---" in linha:
-            pass # Ignora divisores de markdown puro
+        if '|' in linha:
+            if '---' in linha: continue # Ignora a linha de formatação do markdown
+            # Transforma a linha do markdown em células de PDF
+            row = [Paragraph(cell.strip(), style_normal) for cell in linha.split('|') if cell.strip()]
+            if row: table_data.append(row)
+            in_table = True
         else:
-            story.append(Paragraph(linha, style_normal))
+            if in_table and table_data:
+                t = Table(table_data, hAlign='LEFT')
+                t.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0B2D5C')),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,0), 10),
+                    ('BOTTOMPADDING', (0,0), (-1,0), 8),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F8F9F9')),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.grey)
+                ]))
+                story.append(t)
+                story.append(Spacer(1, 10))
+                table_data = []
+                in_table = False
+                
+            # Renderização de texto normal e subtítulos balanceados
+            if linha.startswith('### '): story.append(Paragraph(linha.replace('### ', '').strip(), style_h3))
+            elif linha.startswith('## ') or linha.startswith('1. ') or linha.startswith('2. '): story.append(Paragraph(linha.replace('## ', '').strip(), style_h2))
+            elif linha.startswith('- ') or linha.startswith('* '): story.append(Paragraph(f"• {linha[2:]}", style_normal))
+            else: story.append(Paragraph(linha, style_normal))
             
+    if in_table and table_data: # Segurança caso o texto acabe na tabela
+        t = Table(table_data, hAlign='LEFT')
+        t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0B2D5C')), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('GRID', (0,0), (-1,-1), 0.5, colors.grey)]))
+        story.append(t)
+        
     doc.build(story, onFirstPage=lambda c, d: add_premium_header_footer(c, d, email), onLaterPages=lambda c, d: add_premium_header_footer(c, d, email))
-    
     buffer.seek(0)
     return buffer
