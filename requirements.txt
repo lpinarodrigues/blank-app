@@ -7,3 +7,7 @@ groq
 PyPDF2
 python-docx
 reportlab
+PyPDF2
+python-docx
+python-pptx
+reportlab
