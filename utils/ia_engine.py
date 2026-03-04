@@ -3,7 +3,6 @@ from groq import Groq
 import json
 from database import salvar_item_estudo
 
-# Configuração das chaves
 def get_ai_client():
     return Groq(api_key=st.secrets["GROQ_API_KEY"])
 
@@ -20,10 +19,9 @@ def consultar_core_ia_perfeicao(prompt, contexto="", img_b64=None):
     res = completion.choices[0].message.content
     return res, "Geral", "Clínica"
 
-def gerar_apenas_flashcards(texto_base, area, subtema, email):
+def gerar_apenas_flashcards(texto_base, area, subtema, email, qtd=5):
     client = get_ai_client()
-    # CORREÇÃO AQUI: Chaves duplas {{ }} para o Python não confundir o JSON com variáveis
-    prompt = f"""Baseado neste texto médico, crie 5 Flashcards (Pergunta e Resposta).
+    prompt = f"""Baseado neste texto médico, crie {qtd} Flashcards (Pergunta e Resposta).
     Retorne EXCLUSIVAMENTE um objeto JSON com a chave "flashcards" contendo a lista.
     Exemplo do formato:
     {{ "flashcards": [ {{ "pergunta": "Qual o limite?", "resposta": "120 mmHg" }} ] }}
@@ -58,10 +56,9 @@ def gerar_apenas_flashcards(texto_base, area, subtema, email):
         print(f"Erro Flashcard: {e}")
         return 0
 
-def gerar_apenas_questoes(texto_base, area, subtema, email):
+def gerar_apenas_questoes(texto_base, area, subtema, email, qtd=3):
     client = get_ai_client()
-    # CORREÇÃO AQUI: Chaves duplas {{ }}
-    prompt = f"""Crie 3 questões de múltipla escolha baseadas no texto. 
+    prompt = f"""Crie {qtd} questões de múltipla escolha baseadas no texto. 
     Retorne EXCLUSIVAMENTE um objeto JSON com a chave "questoes" contendo a lista.
     Exemplo do formato: 
     {{ "questoes": [ {{ "pergunta": "...", "a": "...", "b": "...", "c": "...", "d": "...", "gabarito": "A", "explicacao": "..." }} ] }}
