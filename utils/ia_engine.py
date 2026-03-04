@@ -6,9 +6,9 @@ import re
 import PyPDF2
 import docx
 import pptx
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.pagesizes import A4
+import textwrap
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 from database import salvar_item_estudo
 
 def get_ai_client():
@@ -16,8 +16,8 @@ def get_ai_client():
 
 def consultar_core_ia_perfeicao(prompt, contexto="", img_b64=None):
     client = get_ai_client()
-    sys_msg = "Você é o CORE NEXUS, um Médico Preceptor de elite. Responda de forma clínica, estruturada (use bullet points e negritos) e baseada em evidências."
-    full_prompt = f"Contexto do Arquivo:\n{contexto}\n\nComando do Usuário:\n{prompt}"
+    sys_msg = "Você é o CORE NEXUS, um Médico Pesquisador. Analise tudo com profundidade extrema. Pense passo-a-passo antes de concluir."
+    full_prompt = f"Documento:\n{contexto}\n\nComando:\n{prompt}"
     
     completion = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -39,7 +39,7 @@ def limpar_json(texto):
 def gerar_apenas_flashcards(texto_base, area, subtema, email, qtd=5):
     client = get_ai_client()
     prompt = (
-        f"Baseado no texto, crie {qtd} Flashcards diretos.\n"
+        f"Analise PROFUNDAMENTE o texto e extraia os {qtd} conceitos mais difíceis e cruciais.\n"
         "Retorne EXCLUSIVAMENTE um objeto JSON puro. Nao use crases.\n"
         "Formato: { \"flashcards\": [ { \"pergunta\": \"...\", \"resposta\": \"...\" } ] }\n"
         f"Texto: {texto_base}"
@@ -59,12 +59,14 @@ def gerar_apenas_flashcards(texto_base, area, subtema, email, qtd=5):
                     salvar_item_estudo({"pergunta": c["pergunta"], "resposta": c["resposta"], "grande_area": area, "subtema": subtema, "categoria": "Flashcard", "criado_por_email": email})
                     count += 1
         return count
-    except: return 0
+    except Exception as e: 
+        print(f"Erro FC: {e}")
+        return 0
 
 def gerar_apenas_questoes(texto_base, area, subtema, email, qtd=3):
     client = get_ai_client()
     prompt = (
-        f"Crie {qtd} questoes de multipla escolha padrão residência.\n"
+        f"Crie {qtd} questoes de multipla escolha com nível de dificuldade de prova de especialidade.\n"
         "Retorne EXCLUSIVAMENTE um objeto JSON puro. Nao use crases.\n"
         "Formato: { \"questoes\": [ { \"pergunta\": \"...\", \"a\": \"...\", \"b\": \"...\", \"c\": \"...\", \"d\": \"...\", \"gabarito\": \"A\", \"explicacao\": \"...\" } ] }\n"
         f"Texto: {texto_base}"
@@ -85,7 +87,9 @@ def gerar_apenas_questoes(texto_base, area, subtema, email, qtd=3):
                     get_supabase().table("questionarios").insert({"pergunta": q.get("pergunta", ""), "opcao_a": q.get("a", ""), "opcao_b": q.get("b", ""), "opcao_c": q.get("c", ""), "opcao_d": q.get("d", ""), "gabarito": q.get("gabarito", "A"), "explica_correta": q.get("explicacao", ""), "criado_por_email": email}).execute()
                     count += 1
         return count
-    except: return 0
+    except Exception as e:
+        print(f"Erro QS: {e}")
+        return 0
 
 def ler_documento_universal(arquivo):
     if arquivo is None: return ""
@@ -96,7 +100,7 @@ def ler_documento_universal(arquivo):
             texto_puro = arquivo.getvalue().decode("utf-8", errors="ignore")
         elif nome.endswith(".pdf"):
             pdf = PyPDF2.PdfReader(arquivo)
-            texto_puro = " ".join([page.extract_text() for page in pdf.pages if page.extract_text()])
+            texto_puro = " \n ".join([page.extract_text() for page in pdf.pages if page.extract_text()])
         elif nome.endswith(".docx"):
             doc = docx.Document(arquivo)
             texto_puro = " ".join([p.text for p in doc.paragraphs])
@@ -106,34 +110,41 @@ def ler_documento_universal(arquivo):
                 for shape in slide.shapes:
                     if hasattr(shape, "text"): texto_puro += shape.text + " "
         
-        # Limpeza agressiva de texto para não confundir a IA (Remove quebras de linha quebradas do PDF)
         texto_limpo = re.sub(r'\s+', ' ', texto_puro)
         return texto_limpo
     except Exception as e: return f"Erro ao ler arquivo: {e}"
 
 def gerar_pdf_premium(texto, titulo="Protocolo Nexus"):
     buffer = io.BytesIO()
-    # Usando Platypus para design de nível superior
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=50, leftMargin=50, topMargin=50, bottomMargin=50)
-    styles = getSampleStyleSheet()
+    c = canvas.Canvas(buffer, pagesize=letter)
     
-    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=16, spaceAfter=20, textColor='#1e293b')
-    sub_style = ParagraphStyle('SubStyle', parent=styles['Heading2'], fontSize=12, spaceAfter=15, textColor='#3b82f6')
-    normal_style = ParagraphStyle('NormalStyle', parent=styles['Normal'], fontSize=11, spaceAfter=10, leading=16)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, 750, "CORE NEXUS | Inteligência Médica")
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, 725, titulo[:80])
+    c.line(50, 715, 550, 715)
     
-    story = []
-    story.append(Paragraph("<b>CORE NEXUS | Inteligência Médica</b>", title_style))
-    story.append(Paragraph(f"<i>{titulo}</i>", sub_style))
-    story.append(Spacer(1, 15))
+    texto_limpo = texto.replace("**", "").replace("*", "").replace("#", "")
     
-    # Conversão básica de Markdown para tags HTML do ReportLab
-    texto_formatado = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', texto) # Negrito
-    texto_formatado = re.sub(r'\*(.*?)\*', r'<i>\1</i>', texto_formatado) # Itálico
+    y = 690
+    c.setFont("Helvetica", 11)
     
-    for paragrafo in texto_formatado.split('\n'):
-        if paragrafo.strip():
-            story.append(Paragraph(paragrafo.strip(), normal_style))
+    for linha in texto_limpo.split("\n"):
+        linha = linha.strip()
+        if not linha:
+            y -= 10
+            continue
             
-    doc.build(story)
+        linhas_quebradas = textwrap.wrap(linha, width=85)
+        for sub_linha in linhas_quebradas:
+            c.drawString(50, y, sub_linha)
+            y -= 15
+            
+            if y < 50:
+                c.showPage()
+                y = 750
+                c.setFont("Helvetica", 11)
+                
+    c.save()
     buffer.seek(0)
     return buffer.getvalue()
