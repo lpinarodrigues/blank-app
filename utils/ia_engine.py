@@ -1,6 +1,12 @@
 import streamlit as st
 from groq import Groq
 import json
+import io
+import PyPDF2
+import docx
+import pptx
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 from database import salvar_item_estudo
 
 def get_ai_client():
@@ -9,7 +15,7 @@ def get_ai_client():
 def consultar_core_ia_perfeicao(prompt, contexto="", img_b64=None):
     client = get_ai_client()
     sys_msg = "Você é o CORE NEXUS. Responda de forma clínica, objetiva e baseada em evidências."
-    full_prompt = f"Contexto: {contexto}\n\nPergunta: {prompt}"
+    full_prompt = f"Contexto do Arquivo: {contexto}\n\nPergunta/Comando: {prompt}"
     
     completion = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -20,99 +26,5 @@ def consultar_core_ia_perfeicao(prompt, contexto="", img_b64=None):
     return res, "Geral", "Clínica"
 
 def limpar_json(texto):
-    """Remove marcações markdown que a IA às vezes coloca."""
     texto = texto.strip()
-    if texto.startswith("```json"):
-        texto = texto[7:]
-    if texto.startswith("```"):
-        texto = texto[3:]
-    if texto.endswith("```"):
-        texto = texto[:-3]
-    return texto.strip()
-
-def gerar_apenas_flashcards(texto_base, area, subtema, email, qtd=5):
-    client = get_ai_client()
-    prompt = f"""Baseado neste texto médico, crie {qtd} Flashcards (Pergunta e Resposta).
-    Retorne EXCLUSIVAMENTE um objeto JSON puro. Não use crases (```) nem a palavra json.
-    Formato:
-    {{ "flashcards": [ {{ "pergunta": "...", "resposta": "..." }} ] }}
-    
-    Texto: {texto_base}"""
-    
-    try:
-        completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"}
-        )
-        
-        texto_limpo = limpar_json(completion.choices[0].message.content)
-        cards = json.loads(texto_limpo)
-        lista = cards.get('flashcards', cards) if isinstance(cards, dict) else cards
-        
-        count = 0
-        if isinstance(lista, list):
-            for c in lista:
-                if isinstance(c, dict) and 'pergunta' in c and 'resposta' in c:
-                    salvar_item_estudo({
-                        "pergunta": c['pergunta'],
-                        "resposta": c['resposta'],
-                        "grande_area": area,
-                        "subtema": subtema,
-                        "categoria": "Flashcard",
-                        "criado_por_email": email
-                    })
-                    count += 1
-        return count
-    except Exception as e:
-        st.error(f"Erro ao salvar Flashcards: {e}")
-        return 0
-
-def gerar_apenas_questoes(texto_base, area, subtema, email, qtd=3):
-    client = get_ai_client()
-    prompt = f"""Crie {qtd} questões de múltipla escolha baseadas no texto. 
-    Retorne EXCLUSIVAMENTE um objeto JSON puro. Não use crases (```).
-    Formato: 
-    {{ "questoes": [ {{ "pergunta": "...", "a": "...", "b": "...", "c": "...", "d": "...", "gabarito": "A", "explicacao": "..." }} ] }}
-    
-    Texto: {texto_base}"""
-    
-    try:
-        completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"}
-        )
-        
-        texto_limpo = limpar_json(completion.choices[0].message.content)
-        dados = json.loads(texto_limpo)
-        questoes = dados.get('questoes', dados) if isinstance(dados, dict) else dados
-        
-        count = 0
-        if isinstance(questoes, list):
-            from database import get_supabase
-            for q in questoes:
-                if isinstance(q, dict):
-                    # Tenta inserir no banco e captura erro se falhar
-                    resposta = get_supabase().table("questionarios").insert({
-                        "pergunta": q.get('pergunta', ''),
-                        "opcao_a": q.get('a', ''),
-                        "opcao_b": q.get('b', ''),
-                        "opcao_c": q.get('c', ''),
-                        "opcao_d": q.get('d', ''),
-                        "gabarito": q.get('gabarito', 'A'),
-                        "explica_correta": q.get('explicacao', ''),
-                        "criado_por_email": email
-                    }).execute()
-                    count += 1
-        return count
-    except Exception as e:
-        st.error(f"Erro ao salvar Questões no Banco: {e}")
-        return 0
-
-def ler_arquivo_texto(arquivo):
-    if arquivo is None: return ""
-    return arquivo.getvalue().decode("utf-8", errors="ignore")
-
-def gerar_pdf_resposta(texto, email):
-    return b"PDF Gerado"
+    if texto.startswith("
