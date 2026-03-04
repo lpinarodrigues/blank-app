@@ -5,148 +5,134 @@ def show():
     email = st.session_state.get('user_email', 'admin@nexus.com')
     
     # ---------------------------------------------------------
-    # 🎨 INJEÇÃO DE CSS PREMIUM (O SEGREDO DO VISUAL MODERNO)
+    # 📱 CSS MOBILE-FIRST (Estilo iOS/Android App)
     # ---------------------------------------------------------
     st.markdown("""
         <style>
-        /* Esconde elementos padrão do Streamlit para visual mais limpo */
-        .st-emotion-cache-16txtl3 { padding-top: 1rem; }
+        /* Ajuste de margens para telas pequenas */
+        .block-container { padding-top: 2rem; max-width: 800px; }
         
-        /* Cards Premium */
-        .nexus-card {
+        /* O 'Cartão' principal (Mobile UX) */
+        .mobile-card {
             background: linear-gradient(145deg, #1e293b, #0f172a);
             border: 1px solid #334155;
-            border-radius: 16px;
-            padding: 24px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
-            margin-bottom: 20px;
-        }
-        .nexus-card:hover { border-color: #3b82f6; transform: translateY(-2px); }
-        
-        /* Tags de Categoria */
-        .nexus-tag {
-            background: #3b82f633; color: #60a5fa;
-            padding: 4px 12px; border-radius: 20px;
-            font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
-            letter-spacing: 0.5px; display: inline-block; margin-bottom: 12px;
+            border-radius: 24px; /* Bordas bem arredondadas estilo Apple */
+            padding: 40px 20px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            margin-bottom: 24px;
         }
         
-        /* Flashcards Tipografia */
-        .fc-pergunta { font-size: 1.3rem; font-weight: 700; color: #f8fafc; text-align: center; margin-bottom: 10px; }
-        .fc-resposta { font-size: 1.1rem; color: #94a3b8; text-align: center; padding-top: 15px; border-top: 1px dashed #334155; }
+        .mc-pergunta { font-size: 1.4rem; font-weight: 800; color: #f8fafc; line-height: 1.4; margin-bottom: 10px; }
+        .mc-resposta { font-size: 1.2rem; color: #10b981; font-weight: 600; padding-top: 20px; border-top: 1px solid #334155; margin-top: 20px; }
         
-        /* Estilização das Abas */
-        .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-        .stTabs [data-baseweb="tab"] { border-radius: 8px 8px 0 0; padding: 10px 20px; font-weight: 600; }
-        .stTabs [aria-selected="true"] { background-color: #3b82f6 !important; color: white !important; }
+        /* Botões mais altos (Touch-friendly) */
+        .stButton>button { border-radius: 16px; height: 54px; font-weight: 700; font-size: 1.1rem; }
         </style>
     """, unsafe_allow_html=True)
 
     # ---------------------------------------------------------
-    # 🏆 DASHBOARD DE GAMIFICAÇÃO (TOPO)
+    # 🧠 GESTÃO DE ESTADO (MEMÓRIA DO CARROSSEL)
     # ---------------------------------------------------------
-    st.markdown("## 🎓 Centro de Performance")
-    
-    # Simulação de métricas reais (podemos conectar ao banco depois)
-    col_m1, col_m2, col_m3 = st.columns(3)
-    col_m1.metric("🔥 Ofensiva", "12 Dias", "Consistente")
-    col_m2.metric("🎴 Cards Revisados", "45", "Hoje")
-    col_m3.metric("🎯 Precisão em Questões", "82%", "+5% essa semana")
-    
+    if 'card_index' not in st.session_state: st.session_state.card_index = 0
+    if 'show_answer' not in st.session_state: st.session_state.show_answer = False
+
+    st.markdown("<h2 style='text-align: center; font-size: 1.8rem;'>🎓 Master Study</h2>", unsafe_allow_html=True)
     st.divider()
 
-    # ---------------------------------------------------------
-    # 📂 ABAS MODERNIZADAS
-    # ---------------------------------------------------------
-    t_res, t_cards, t_qs = st.tabs(["📘 Biblioteca de Protocolos", "⚡ Modo Foco (Flashcards)", "📝 Arena de Simulados"])
+    t_cards, t_qs, t_res = st.tabs(["⚡ Flashcards", "📝 Simulados", "📘 Protocolos"])
 
-    # --- ABA 1: PROTOCOLOS ---
-    with t_res:
-        try:
-            res = get_supabase().table("flashcards").select("*").eq("criado_por_email", email).eq("categoria", "Resumo").neq("categoria", "Lixeira").execute()
-            itens = res.data if res.data else []
-            if not itens:
-                st.info("Sua biblioteca está limpa. Adicione protocolos via Core AI.")
-            else:
-                for r in itens:
-                    if isinstance(r, dict):
-                        # HTML Customizado para o Card de Resumo
-                        st.markdown(f"""
-                            <div class="nexus-card">
-                                <span class="nexus-tag">{r.get('grande_area', 'Clínica')}</span>
-                                <span class="nexus-tag" style="background: #10b98133; color: #34d399;">{r.get('subtema', 'Geral')}</span>
-                                <h3>{r.get('pergunta')}</h3>
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Os botões nativos precisam ficar fora do HTML
-                        c1, c2 = st.columns([0.85, 0.15])
-                        with c1:
-                            with st.expander("Ler Protocolo Completo"):
-                                st.write(r.get('resposta'))
-                        with c2:
-                            if st.button("🗑️ Excluir", key=f"del_res_{r.get('id')}"):
-                                mover_para_lixeira(r.get('id'))
-                                st.rerun()
-        except Exception as e: st.error(f"Erro: {e}")
-
-    # --- ABA 2: FLASHCARDS (ESTILO ANKI PREMIUM) ---
+    # --- ABA 1: FLASHCARDS (MODO FOCO 1 POR VEZ) ---
     with t_cards:
         try:
             res_cards = get_supabase().table("flashcards").select("*").eq("criado_por_email", email).eq("categoria", "Flashcard").neq("categoria", "Lixeira").execute()
             cards = res_cards.data if res_cards.data else []
             
             if not cards:
-                st.success("🎉 Você zerou suas revisões de hoje!")
+                st.success("🎉 Parabéns! Você zerou suas revisões de hoje!")
+                st.balloons()
             else:
-                st.progress(len(cards) / 100 if len(cards) < 100 else 1.0, text=f"{len(cards)} cards pendentes")
+                # Segurança: se o index passar do limite (ex: apagou cards), reseta
+                if st.session_state.card_index >= len(cards):
+                    st.session_state.card_index = 0
+                    st.session_state.show_answer = False
                 
-                for c in cards:
-                    if isinstance(c, dict):
-                        st.markdown(f"""
-                            <div class="nexus-card">
-                                <div class="fc-pergunta">{c.get('pergunta')}</div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
-                        with st.expander("👁️ Revelar Resposta"):
-                            st.markdown(f"<div class='fc-resposta'>{c.get('resposta')}</div>", unsafe_allow_html=True)
-                            st.write("") # Espaçamento
-                            c1, c2, c3, c4 = st.columns(4)
-                            if c1.button("🟢 Fácil (4d)", key=f"f_{c.get('id')}", use_container_width=True): atualizar_progresso_sm2(c.get('id'), 5); st.rerun()
-                            if c2.button("🟡 Médio (1d)", key=f"m_{c.get('id')}", use_container_width=True): atualizar_progresso_sm2(c.get('id'), 3); st.rerun()
-                            if c3.button("🔴 Difícil (10m)", key=f"d_{c.get('id')}", use_container_width=True): atualizar_progresso_sm2(c.get('id'), 1); st.rerun()
-                            if c4.button("🗑️ Descartar", key=f"del_c_{c.get('id')}", use_container_width=True): mover_para_lixeira(c.get('id')); st.rerun()
-                        st.write("---")
+                c_atual = cards[st.session_state.card_index]
+                
+                # Barra de progresso mobile
+                progresso = (st.session_state.card_index + 1) / len(cards)
+                st.progress(progresso, text=f"Card {st.session_state.card_index + 1} de {len(cards)}")
+                
+                # Renderização do Card Único
+                if not st.session_state.show_answer:
+                    st.markdown(f"""
+                        <div class="mobile-card">
+                            <div class="mc-pergunta">{c_atual.get('pergunta')}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    if st.button("Revelar Resposta 👁️", use_container_width=True, type="primary"):
+                        st.session_state.show_answer = True
+                        st.rerun()
+                
+                else:
+                    st.markdown(f"""
+                        <div class="mobile-card">
+                            <div class="mc-pergunta">{c_atual.get('pergunta')}</div>
+                            <div class="mc-resposta">{c_atual.get('resposta')}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.caption("Qual seu nível de retenção?")
+                    c1, c2, c3 = st.columns(3)
+                    
+                    # Lógica de avanço de card
+                    def proximo_card(id_card, peso):
+                        atualizar_progresso_sm2(id_card, peso)
+                        st.session_state.card_index += 1
+                        st.session_state.show_answer = False
+                    
+                    if c1.button("🟢 Fácil", use_container_width=True): 
+                        proximo_card(c_atual['id'], 5); st.rerun()
+                    if c2.button("🟡 Médio", use_container_width=True): 
+                        proximo_card(c_atual['id'], 3); st.rerun()
+                    if c3.button("🔴 Difícil", use_container_width=True): 
+                        proximo_card(c_atual['id'], 1); st.rerun()
+
         except Exception as e: st.error(f"Erro: {e}")
 
-    # --- ABA 3: QUESTÕES (ESTILO UWORLD) ---
+    # --- ABA 2: QUESTÕES ---
     with t_qs:
         try:
             res_qs = get_supabase().table("questionarios").select("*").eq("criado_por_email", email).execute()
             qs = res_qs.data if res_qs.data else []
             
-            if not qs:
-                st.info("O banco de questões está vazio. Gere simulados no Core AI.")
+            if not qs: st.info("Gere simulados no Core AI.")
             else:
                 for i, q in enumerate(qs):
                     if isinstance(q, dict):
                         with st.container(border=True):
-                            st.markdown(f"#### Questão {i+1}")
-                            st.markdown(f"<p style='font-size: 1.1rem; color: #e2e8f0;'>{q.get('pergunta')}</p>", unsafe_allow_html=True)
-                            
+                            st.markdown(f"**Q{i+1}.** {q.get('pergunta')}")
                             opcoes = ["A", "B", "C", "D"]
                             alt_text = [q.get('opcao_a', ''), q.get('opcao_b', ''), q.get('opcao_c', ''), q.get('opcao_d', '')]
-                            
-                            escolha = st.radio("Selecione sua resposta:", options=opcoes, format_func=lambda x: f"{x}) {alt_text[opcoes.index(x)]}", key=f"q_rad_{q.get('id', i)}", label_visibility="collapsed")
-                            
-                            if st.button("Validar Gabarito", key=f"check_{q.get('id', i)}", type="primary"):
-                                if escolha == q.get('gabarito'): 
-                                    st.success(f"🎯 **Correto!** Alternativa {escolha}")
-                                else: 
-                                    st.error(f"❌ **Incorreto.** O gabarito é a letra **{q.get('gabarito')}**")
-                                
-                                st.info(f"**📚 Justificativa Clínica:**\n{q.get('explica_correta')}")
-        except Exception as e: st.error(f"Erro: {e}")
+                            escolha = st.radio("Sua resposta:", options=opcoes, format_func=lambda x: f"{x}) {alt_text[opcoes.index(x)]}", key=f"q_{q.get('id', i)}", label_visibility="collapsed")
+                            if st.button("Checar", key=f"chk_{q.get('id', i)}"):
+                                if escolha == q.get('gabarito'): st.success("🎯 Correto!")
+                                else: st.error(f"❌ Gabarito: {q.get('gabarito')}")
+                                st.info(q.get('explica_correta'))
+        except: pass
+
+    # --- ABA 3: PROTOCOLOS ---
+    with t_res:
+        try:
+            res = get_supabase().table("flashcards").select("*").eq("criado_por_email", email).eq("categoria", "Resumo").neq("categoria", "Lixeira").execute()
+            itens = res.data if res.data else []
+            if not itens: st.info("Sem protocolos.")
+            else:
+                for r in itens:
+                    if isinstance(r, dict):
+                        with st.expander(f"📘 {r.get('pergunta')}"):
+                            st.markdown(r.get('resposta'))
+                            if st.button("🗑️ Excluir", key=f"d_r_{r.get('id')}"): mover_para_lixeira(r.get('id')); st.rerun()
+        except: pass
 
