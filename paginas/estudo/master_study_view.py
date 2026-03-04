@@ -1,96 +1,65 @@
 import streamlit as st
-from database import listar_flashcards, listar_questoes, get_supabase, mover_para_lixeira, atualizar_progresso_sm2
+from database import get_supabase, listar_flashcards, listar_questoes, mover_para_lixeira, atualizar_progresso_sm2
 
 def show():
-    st.title("🎓 Master Study | Hub de Performance")
+    st.title("🎓 Master Study | Centro de Performance")
     email = st.session_state.get('user_email', 'admin@nexus.com')
     
-    # Criando as 3 frentes de estudo em abas
+    # Criação das Abas de Conexão
     tab_resumos, tab_cards, tab_simulados = st.tabs([
-        "📘 Protocolos & Resumos", 
-        "🎴 Flashcards (Repetição Espaçada)", 
-        "📝 Banco de Questões"
+        "📘 Meus Resumos", 
+        "🎴 Flashcards", 
+        "📝 Questões"
     ])
 
-    # --- ABA 1: RESUMOS ---
+    # --- CONEXÃO 1: RESUMOS (Filtra categoria 'Resumo') ---
     with tab_resumos:
-        st.subheader("Meus Protocolos Salvos")
         try:
             res = get_supabase().table("flashcards").select("*").eq("criado_por_email", email).eq("categoria", "Resumo").neq("categoria", "Lixeira").execute()
-            itens = [i for i in res.data if isinstance(i, dict)] if res.data else []
-        except: itens = []
+            resumos = [r for r in res.data if isinstance(r, dict)] if res.data else []
+            
+            if not resumos:
+                st.info("Nenhum resumo salvo ainda.")
+            else:
+                for r in resumos:
+                    with st.container(border=True):
+                        col_t, col_d = st.columns([10, 1])
+                        col_t.subheader(r.get('pergunta', 'Sem Título'))
+                        if col_d.button("🗑️", key=f"dr_{r['id']}"):
+                            mover_para_lixeira(r['id'])
+                            st.rerun()
+                        with st.expander("Ver Conteúdo"):
+                            st.markdown(r.get('resposta', ''))
+        except: st.error("Erro ao carregar resumos.")
 
-        if not itens:
-            st.info("Nenhum resumo encontrado. Gere um no Core AI!")
-        else:
-            for item in itens:
-                with st.container(border=True):
-                    col_t, col_del = st.columns([10, 1])
-                    col_t.markdown(f"### {item.get('pergunta', 'Sem Título')}")
-                    if col_del.button("🗑️", key=f"del_res_{item['id']}"):
-                        mover_para_lixeira(item['id'])
-                        st.rerun()
-                    
-                    st.caption(f"🏷️ {item.get('grande_area', 'Geral')} | {item.get('subtema', 'Geral')}")
-                    with st.expander("Expandir Conteúdo Completo"):
-                        st.markdown(item.get('resposta', 'Sem conteúdo'))
-
-    # --- ABA 2: FLASHCARDS ---
+    # --- CONEXÃO 2: FLASHCARDS (Filtra categoria 'Flashcard') ---
     with tab_cards:
-        st.subheader("Revisão Ativa")
-        all_cards = listar_flashcards(email)
-        cards = [c for c in all_cards if c.get('categoria') == 'Flashcard']
-        
+        cards = [c for c in listar_flashcards(email) if c.get('categoria') == 'Flashcard']
         if not cards:
-            st.info("Você ainda não tem flashcards para revisar.")
+            st.info("Sua coleção de cards está vazia.")
         else:
-            for card in cards:
-                with st.expander(f"🎴 {str(card.get('pergunta'))[:70]}..."):
-                    st.markdown(f"**Pergunta:**\n{card.get('pergunta')}")
+            for c in cards:
+                with st.expander(f"🎴 {str(c.get('pergunta'))[:60]}..."):
+                    st.write(f"**P:** {c.get('pergunta')}")
                     st.divider()
-                    st.markdown(f"**Resposta:**\n{card.get('resposta')}")
-                    
-                    st.write("Qual foi o seu nível de facilidade?")
-                    c1, c2, c3, c4 = st.columns([1,1,1,1])
-                    if c1.button("🟢 Fácil", key=f"f_{card['id']}"): 
-                        atualizar_progresso_sm2(card['id'], 5)
-                        st.toast("Revisão agendada para daqui a 15 dias!")
-                    if c2.button("🟡 Médio", key=f"m_{card['id']}"): 
-                        atualizar_progresso_sm2(card['id'], 3)
-                        st.toast("Revisão agendada para daqui a 3 dias!")
-                    if c3.button("🔴 Difícil", key=f"d_{card['id']}"): 
-                        atualizar_progresso_sm2(card['id'], 1)
-                        st.toast("Revisão agendada para hoje!")
-                    if c4.button("🗑️", key=f"del_card_{card['id']}"):
-                        mover_para_lixeira(card['id'])
-                        st.rerun()
+                    st.write(f"**R:** {c.get('resposta')}")
+                    c1, c2, c3 = st.columns(3)
+                    if c1.button("🟢 Fácil", key=f"f_{c['id']}"): atualizar_progresso_sm2(c['id'], 5)
+                    if c2.button("🟡 Médio", key=f"m_{c['id']}"): atualizar_progresso_sm2(c['id'], 3)
+                    if c3.button("🔴 Difícil", key=f"d_{c['id']}"): atualizar_progresso_sm2(c['id'], 1)
 
-    # --- ABA 3: QUESTÕES ---
+    # --- CONEXÃO 3: QUESTÕES (Conecta com a tabela questionarios) ---
     with tab_simulados:
-        st.subheader("Treinamento de Questões")
         questoes = listar_questoes(email)
-        
         if not questoes:
-            st.info("Nenhuma questão no seu banco de dados.")
+            st.info("Nenhuma questão gerada.")
         else:
             for i, q in enumerate(questoes):
                 with st.container(border=True):
                     st.markdown(f"**Questão {i+1}**")
                     st.write(q.get('pergunta'))
-                    
-                    opcoes = {
-                        "A": q.get('opcao_a'),
-                        "B": q.get('opcao_b'),
-                        "C": q.get('opcao_c'),
-                        "D": q.get('opcao_d')
-                    }
-                    
-                    escolha = st.radio("Selecione a alternativa:", options=["A", "B", "C", "D"], key=f"q_radio_{q['id']}")
-                    
-                    if st.button("Verificar Gabarito", key=f"btn_q_{q['id']}"):
-                        if escolha == q.get('gabarito'):
-                            st.success(f"Correto! Alternativa {escolha}")
-                        else:
-                            st.error(f"Incorreto. O gabarito é {q.get('gabarito')}")
-                        
-                        st.info(f"**Justificativa:** {q.get('explica_correta')}")
+                    resp = st.radio("Escolha:", ["A", "B", "C", "D"], key=f"rad_{q['id']}")
+                    if st.button("Check Gabarito", key=f"btn_{q['id']}"):
+                        if resp == q.get('gabarito'): st.success("Correto!")
+                        else: st.error(f"Errado. Gabarito: {q.get('gabarito')}")
+                        st.caption(f"Justificativa: {q.get('explica_correta')}")
