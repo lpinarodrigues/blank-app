@@ -18,20 +18,20 @@ def show():
                     if col_del.button("🗑️", key=f"del_{h.get('id', 'x')}"):
                         mover_para_lixeira(h['id'])
                         st.rerun()
-        
-        st.divider()
-        st.subheader("📎 Dissecador de Arquivos")
-        st.write("Suba um PDF/DOCX do seu professor para cruzar com as diretrizes globais.")
-        arquivo_upload = st.file_uploader("Enviar Material", type=["pdf", "docx", "txt"])
 
     st.markdown("### 🧠 Core AI | Terminal Clínico Avançado")
-    pergunta = st.chat_input("Insira o tema ou dúvida médica...")
     
+    # UPLOADER NO CENTRO DA TELA
+    with st.expander("📎 Anexar Documento Base (Opcional - PDF/DOCX)", expanded=False):
+        st.write("Suba uma aula ou artigo para a IA cruzar com as diretrizes.")
+        arquivo_upload = st.file_uploader("", type=["pdf", "docx", "txt"])
+
+    pergunta = st.chat_input("Insira o tema, dúvida ou instrução sobre o arquivo anexado...")
     dados_exibicao = None
 
     if pergunta:
         texto_extraido = ler_arquivo_texto(arquivo_upload) if arquivo_upload else ""
-        with st.spinner("Analisando literatura e processando documento..."):
+        with st.spinner("Processando literatura e estruturando protocolo..."):
             resposta, area, subtema = consultar_core_ia_perfeicao(pergunta, texto_extraido)
             salvar_historico_chat(email, pergunta, resposta, area, subtema)
             dados_exibicao = {"q": pergunta, "a": resposta, "area": area, "subtema": subtema}
@@ -45,25 +45,24 @@ def show():
             st.caption(f"🏷️ Classificação: **{dados_exibicao['area']} | {dados_exibicao['subtema']}**")
             
             st.divider()
-            st.write("🛠️ **Exportação de Estudo (Salva no Banco Global):**")
+            st.write("🛠️ **Ações (Salvas no Master Study):**")
             col1, col2, col3, col4 = st.columns(4)
             
             if col1.button("📥 Enviar p/ Resumos", icon="📘"):
-                if salvar_item_estudo({"pergunta": f"Resumo Oficial: {dados_exibicao['q']}", "resposta": dados_exibicao['a'], "grande_area": dados_exibicao['area'], "subtema": dados_exibicao['subtema'], "categoria": "Resumo", "is_global": True, "criado_por_email": email}):
-                    st.toast("✅ Salvo com sucesso no Master Study!")
-                else: st.error("Erro ao salvar no banco.")
+                salvar_item_estudo({"pergunta": f"Resumo Oficial: {dados_exibicao['q']}", "resposta": dados_exibicao['a'], "grande_area": dados_exibicao['area'], "subtema": dados_exibicao['subtema'], "categoria": "Resumo", "is_global": True, "criado_por_email": email})
+                st.toast("✅ Salvo no Master Study!")
                 
             if col2.button("🎴 Gerar Flashcards", icon="⚡"):
-                with st.spinner("Minerando conhecimento..."):
+                with st.spinner("Minerando..."):
                     qtd = gerar_apenas_flashcards(dados_exibicao['a'], dados_exibicao['area'], dados_exibicao['subtema'], email)
                     if qtd > 0: st.success(f"✅ {qtd} Cards salvos!")
-                    else: st.error("Erro: JSON da IA corrompido.")
+                    else: st.error("Erro na extração.")
             
             if col3.button("📝 Criar Simulado", icon="🎯"):
-                with st.spinner("Formulando questões ABCD..."):
+                with st.spinner("Criando ABCD..."):
                     qtd = gerar_apenas_questoes(dados_exibicao['a'], dados_exibicao['area'], dados_exibicao['subtema'], email)
                     if qtd > 0: st.success(f"✅ {qtd} Questões salvas!")
-                    else: st.error("Erro: JSON da IA corrompido.")
+                    else: st.error("Erro na extração.")
             
             pdf_data = gerar_pdf_resposta(dados_exibicao['a'], email)
             col4.download_button("📄 Baixar PDF Lindo", data=pdf_data, file_name="Protocolo_NEXUS.pdf", mime="application/pdf")

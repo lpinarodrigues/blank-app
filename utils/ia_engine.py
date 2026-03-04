@@ -24,7 +24,7 @@ def configurar_gemini():
     return None
 
 def ler_arquivo_texto(arquivo_upload):
-    """Extrai texto de PDFs, DOCX e TXT"""
+    if not arquivo_upload: return ""
     try:
         if arquivo_upload.name.endswith('.pdf'):
             leitor = PyPDF2.PdfReader(arquivo_upload)
@@ -34,18 +34,16 @@ def ler_arquivo_texto(arquivo_upload):
             return " ".join([p.text for p in doc.paragraphs])
         else:
             return arquivo_upload.getvalue().decode('utf-8')
-    except Exception as e:
-        return f"Erro ao ler arquivo: {e}"
+    except Exception as e: return ""
 
 def consultar_core_ia_perfeicao(prompt, texto_contexto=""):
-    contexto_adicional = f"\n\nBASEIE-SE TAMBÉM NESTE DOCUMENTO FORNECIDO PELO USUÁRIO E CRUZE COM A LITERATURA ATUAL:\n{texto_contexto[:15000]}" if texto_contexto else ""
-    
+    contexto_adicional = f"\n\n[CONTEXTO DO DOCUMENTO ANEXADO]:\n{texto_contexto[:15000]}" if texto_contexto else ""
     instrucao = """
     Aja como Preceptor Titular de Harvard. LINGUAGEM ESTRITAMENTE TÉCNICA.
     Estrutura VISUAL OBRIGATÓRIA:
     1. 📌 FISIOPATOLOGIA E SUBTIPOS.
-    2. 🔀 FLUXOGRAMA DE DECISÃO VISUAL (Use ➔).
-    3. ⚖️ DIAGNÓSTICO DIFERENCIAL (Tabela de 3 colunas: Doença | Semelhança | Sinal Diferenciador/Patognomônico).
+    2. 🔀 FLUXOGRAMA DE DECISÃO VISUAL: Crie algoritmos usando o formato: Passo A ➔ Passo B ➔ Passo C. (Seja sucinto nos passos).
+    3. ⚖️ DIAGNÓSTICO DIFERENCIAL (Tabela Markdown de 3 colunas: Doença | Semelhança | Sinal Patognomônico).
     4. 📈 ESCORES E CRITÉRIOS (Destrinche as variáveis).
     5. ⚠️ RED FLAGS.
     6. 📚 REFERÊNCIAS (Vancouver, máx 8 anos).
@@ -74,22 +72,17 @@ def consultar_core_ia_perfeicao(prompt, texto_contexto=""):
     except Exception as e: return f"Erro: {e}", "Erro", "Erro"
 
 def extrair_json_seguro(texto):
-    """Filtro absoluto para evitar erros na conversão dos Flashcards/Questões"""
     texto = texto.replace('```json', '').replace('```', '')
     try:
         match = re.search(r'\[\s*\{.*?\}\s*\]', texto, re.DOTALL)
         if match: return json.loads(match.group(0))
         return json.loads(texto)
-    except Exception as e:
-        print(f"Erro JSON: {e}") # Log oculto
-        return []
+    except: return []
 
 def gerar_apenas_flashcards(texto, area, subtema, email):
     model = configurar_gemini()
-    prompt = f"Gere 5 flashcards curtos. Retorne ESTRITAMENTE um Array JSON puro: [{{\"p\": \"pergunta\", \"r\": \"resposta\"}}]. Texto: {texto}"
     try:
-        dados = extrair_json_seguro(model.generate_content(prompt).text)
-        if not dados: return 0
+        dados = extrair_json_seguro(model.generate_content(f"Gere 5 flashcards curtos. ESTRITO JSON: [{{\"p\": \"pergunta\", \"r\": \"resposta\"}}]. Texto: {texto}").text)
         from database import salvar_item_estudo
         count = 0
         for f in dados:
@@ -99,10 +92,8 @@ def gerar_apenas_flashcards(texto, area, subtema, email):
 
 def gerar_apenas_questoes(texto, area, subtema, email):
     model = configurar_gemini()
-    prompt = f"Gere 3 questões de residência ABCD. Retorne ESTRITAMENTE um Array JSON puro: [{{\"pergunta\": \"\", \"a\": \"\", \"b\": \"\", \"c\": \"\", \"d\": \"\", \"gabarito\": \"A\", \"justificativa\": \"\"}}]. Texto: {texto}"
     try:
-        dados = extrair_json_seguro(model.generate_content(prompt).text)
-        if not dados: return 0
+        dados = extrair_json_seguro(model.generate_content(f"Gere 3 questões ABCD. ESTRITO JSON: [{{\"pergunta\": \"\", \"a\": \"\", \"b\": \"\", \"c\": \"\", \"d\": \"\", \"gabarito\": \"A\", \"justificativa\": \"\"}}]. Texto: {texto}").text)
         from database import salvar_questao
         count = 0
         for q in dados:
@@ -119,7 +110,6 @@ def add_premium_header_footer(canvas, doc, email):
     canvas.drawString(40, 760, "CORE NEXUS")
     canvas.setFont('Helvetica', 10)
     canvas.drawString(40, 748, "Clinical Guidelines & Advanced Pathways")
-    
     codigo_rastreio = base64.b64encode(email.encode('utf-8')).decode('utf-8')
     canvas.setFont('Helvetica', 6)
     canvas.setFillGray(0.7)
@@ -129,15 +119,14 @@ def add_premium_header_footer(canvas, doc, email):
 def gerar_pdf_resposta(texto, email):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=70, bottomMargin=40)
-    
     styles = getSampleStyleSheet()
-    style_normal = ParagraphStyle('Normal_Bullet', parent=styles['Normal'], textColor=colors.HexColor('#2C3E50'), alignment=TA_JUSTIFY, spaceAfter=10, fontSize=10, leading=15)
+    style_normal = ParagraphStyle('Normal_Bullet', parent=styles['Normal'], textColor=colors.HexColor('#2C3E50'), alignment=TA_JUSTIFY, spaceAfter=8, fontSize=10, leading=15)
     style_h2 = ParagraphStyle('Heading2_Premium', parent=styles['Heading2'], textColor=colors.HexColor('#0B2D5C'), spaceBefore=20, spaceAfter=8, fontSize=13)
     style_h3 = ParagraphStyle('Heading3_Sub', parent=styles['Heading3'], textColor=colors.HexColor('#1F618D'), spaceBefore=15, spaceAfter=6, fontSize=11, fontName='Helvetica-Bold')
-    style_flowchart = ParagraphStyle('Flowchart', parent=styles['Normal'], textColor=colors.HexColor('#117A65'), alignment=TA_CENTER, spaceBefore=8, spaceAfter=8, fontSize=10, fontName='Helvetica-Bold')
     
-    # ESTILO FORÇADO PARA CABEÇALHO BRANCO NA TABELA
-    style_table_header = ParagraphStyle('TableHeader', parent=styles['Normal'], textColor=colors.white, fontName='Helvetica-Bold', fontSize=10, alignment=TA_CENTER)
+    # ESTILOS PARA O FLUXOGRAMA EM BLOCOS
+    style_flow_box = ParagraphStyle('FlowBox', parent=styles['Normal'], textColor=colors.HexColor('#0B5345'), alignment=TA_CENTER, fontSize=10, fontName='Helvetica-Bold')
+    style_flow_arrow = ParagraphStyle('FlowArrow', parent=styles['Normal'], textColor=colors.HexColor('#117A65'), alignment=TA_CENTER, fontSize=16, spaceBefore=4, spaceAfter=4)
     
     story = []
     texto_formatado = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', texto)
@@ -162,20 +151,39 @@ def gerar_pdf_resposta(texto, email):
                     ('TOPPADDING', (0,0), (-1,-1), 6),
                 ]))
                 story.append(t)
-                story.append(Spacer(1, 15)) # Espaço maior após a tabela
+                story.append(Spacer(1, 15))
                 table_data = []
                 in_table = False
             continue
             
         if '|' in linha:
             if '---' in linha: continue
-            # Se for a primeira linha (cabeçalho), aplica a fonte branca forçada
+            # FORÇA FONTE BRANCA NO CABEÇALHO E CINZA CHUMBO NO CORPO
             if not table_data:
-                row = [Paragraph(cell.strip(), style_table_header) for cell in linha.split('|') if cell.strip()]
+                row = [Paragraph(f"<font color='white'><b>{cell.strip()}</b></font>", style_normal) for cell in linha.split('|') if cell.strip()]
             else:
-                row = [Paragraph(cell.strip(), style_normal) for cell in linha.split('|') if cell.strip()]
+                row = [Paragraph(f"<font color='#2C3E50'>{cell.strip()}</font>", style_normal) for cell in linha.split('|') if cell.strip()]
             if row: table_data.append(row)
             in_table = True
+        elif '➔' in linha or '->' in linha:
+            # TRANSFORMA TEXTO EM FLUXOGRAMA DE BLOCOS
+            passos = re.split(r'➔|->', linha)
+            for i, passo in enumerate(passos):
+                passo = passo.strip()
+                if passo:
+                    box = Table([[Paragraph(passo, style_flow_box)]], colWidths=[300], hAlign='CENTER')
+                    box.setStyle(TableStyle([
+                        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#E8F8F5')), # Fundo Verde Claro
+                        ('BOX', (0,0), (-1,-1), 1.5, colors.HexColor('#117A65')), # Borda Verde Escura
+                        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                        ('TOPPADDING', (0,0), (-1,-1), 8),
+                    ]))
+                    story.append(box)
+                    if i < len(passos) - 1:
+                        story.append(Paragraph("⬇", style_flow_arrow)) # Seta conectora
+            story.append(Spacer(1, 10))
         else:
             if in_table and table_data:
                 t = Table(table_data, hAlign='LEFT', colWidths=[120, 180, 220])
@@ -185,10 +193,9 @@ def gerar_pdf_resposta(texto, email):
                 table_data = []
                 in_table = False
                 
-            if '➔' in linha or '->' in linha: story.append(Paragraph(linha, style_flowchart))
-            elif linha.startswith('### '): story.append(Paragraph(linha.replace('### ', '').strip(), style_h3))
-            elif linha.startswith('## ') or linha.startswith('1. ') or linha.startswith('2. ') or linha.startswith('3. '): 
-                story.append(Spacer(1, 10)) # Espaço extra antes de cada novo bloco
+            if linha.startswith('### '): story.append(Paragraph(linha.replace('### ', '').strip(), style_h3))
+            elif linha.startswith('## ') or linha.startswith('1. ') or linha.startswith('2. '): 
+                story.append(Spacer(1, 10))
                 story.append(Paragraph(linha.replace('## ', '').strip(), style_h2))
             elif linha.startswith('- ') or linha.startswith('* '): story.append(Paragraph(f"• {linha[2:]}", style_normal))
             else: story.append(Paragraph(linha, style_normal))
