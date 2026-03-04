@@ -19,12 +19,23 @@ def consultar_core_ia_perfeicao(prompt, contexto="", img_b64=None):
     res = completion.choices[0].message.content
     return res, "Geral", "Clínica"
 
+def limpar_json(texto):
+    """Remove marcações markdown que a IA às vezes coloca."""
+    texto = texto.strip()
+    if texto.startswith("```json"):
+        texto = texto[7:]
+    if texto.startswith("```"):
+        texto = texto[3:]
+    if texto.endswith("```"):
+        texto = texto[:-3]
+    return texto.strip()
+
 def gerar_apenas_flashcards(texto_base, area, subtema, email, qtd=5):
     client = get_ai_client()
     prompt = f"""Baseado neste texto médico, crie {qtd} Flashcards (Pergunta e Resposta).
-    Retorne EXCLUSIVAMENTE um objeto JSON com a chave "flashcards" contendo a lista.
-    Exemplo do formato:
-    {{ "flashcards": [ {{ "pergunta": "Qual o limite?", "resposta": "120 mmHg" }} ] }}
+    Retorne EXCLUSIVAMENTE um objeto JSON puro. Não use crases (```) nem a palavra json.
+    Formato:
+    {{ "flashcards": [ {{ "pergunta": "...", "resposta": "..." }} ] }}
     
     Texto: {texto_base}"""
     
@@ -35,7 +46,8 @@ def gerar_apenas_flashcards(texto_base, area, subtema, email, qtd=5):
             response_format={"type": "json_object"}
         )
         
-        cards = json.loads(completion.choices[0].message.content)
+        texto_limpo = limpar_json(completion.choices[0].message.content)
+        cards = json.loads(texto_limpo)
         lista = cards.get('flashcards', cards) if isinstance(cards, dict) else cards
         
         count = 0
@@ -53,14 +65,14 @@ def gerar_apenas_flashcards(texto_base, area, subtema, email, qtd=5):
                     count += 1
         return count
     except Exception as e:
-        print(f"Erro Flashcard: {e}")
+        st.error(f"Erro ao salvar Flashcards: {e}")
         return 0
 
 def gerar_apenas_questoes(texto_base, area, subtema, email, qtd=3):
     client = get_ai_client()
     prompt = f"""Crie {qtd} questões de múltipla escolha baseadas no texto. 
-    Retorne EXCLUSIVAMENTE um objeto JSON com a chave "questoes" contendo a lista.
-    Exemplo do formato: 
+    Retorne EXCLUSIVAMENTE um objeto JSON puro. Não use crases (```).
+    Formato: 
     {{ "questoes": [ {{ "pergunta": "...", "a": "...", "b": "...", "c": "...", "d": "...", "gabarito": "A", "explicacao": "..." }} ] }}
     
     Texto: {texto_base}"""
@@ -72,7 +84,8 @@ def gerar_apenas_questoes(texto_base, area, subtema, email, qtd=3):
             response_format={"type": "json_object"}
         )
         
-        dados = json.loads(completion.choices[0].message.content)
+        texto_limpo = limpar_json(completion.choices[0].message.content)
+        dados = json.loads(texto_limpo)
         questoes = dados.get('questoes', dados) if isinstance(dados, dict) else dados
         
         count = 0
@@ -80,7 +93,8 @@ def gerar_apenas_questoes(texto_base, area, subtema, email, qtd=3):
             from database import get_supabase
             for q in questoes:
                 if isinstance(q, dict):
-                    get_supabase().table("questionarios").insert({
+                    # Tenta inserir no banco e captura erro se falhar
+                    resposta = get_supabase().table("questionarios").insert({
                         "pergunta": q.get('pergunta', ''),
                         "opcao_a": q.get('a', ''),
                         "opcao_b": q.get('b', ''),
@@ -93,7 +107,7 @@ def gerar_apenas_questoes(texto_base, area, subtema, email, qtd=3):
                     count += 1
         return count
     except Exception as e:
-        print(f"Erro Questões: {e}")
+        st.error(f"Erro ao salvar Questões no Banco: {e}")
         return 0
 
 def ler_arquivo_texto(arquivo):
@@ -101,4 +115,4 @@ def ler_arquivo_texto(arquivo):
     return arquivo.getvalue().decode("utf-8", errors="ignore")
 
 def gerar_pdf_resposta(texto, email):
-    return b"PDF Gerado com Sucesso"
+    return b"PDF Gerado"
