@@ -6,9 +6,9 @@ import base64
 from io import BytesIO
 import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
+from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT
 from reportlab.lib import colors
 
 def configurar_gemini():
@@ -23,17 +23,19 @@ def configurar_gemini():
 
 def consultar_core_ia_perfeicao(prompt):
     instrucao = """
-    Aja como Preceptor Sênior de um hospital de referência. Crie um material EXTENSO, PROFUNDO e EXTREMAMENTE DETALHADO.
+    Aja como um Professor Titular de Harvard Medical School.
+    REGRA DE OURO: PROIBIDO TEXTOS LONGOS. Use esquemas, tabelas (Markdown), bullet points e frases curtas de alto impacto.
+    Se o tema tiver subdivisões (Ex: IC Direita vs Esquerda), crie tópicos separados comparando etiologia, clínica e tratamento.
     
-    Estrutura OBRIGATÓRIA:
-    1. 💊 Conduta Imediata e Fisiopatologia (Doses, vias, mecanismos).
-    2. 🌍 Diretrizes Comparadas (Compare Brasil, EUA e Europa. Cite as diferenças de conduta, se houver).
-    3. 🩺 Sinais Clínicos (Destaque os "Clássicos" e os "Frequentemente Ignorados" no PS).
-    4. ⚖️ Diagnóstico Diferencial (Quais doenças mais se confundem com ela e como fazer o diagnóstico diferencial).
-    5. 📈 Escores e Critérios Diagnósticos.
-    6. ⚠️ Red Flags e Complicações.
-    7. 📚 Referências REAIS (ESTRITAMENTE PADRÃO VANCOUVER). 
-       - REGRAS DE REFERÊNCIA: Máximo de 8 anos de publicação (exceto diretrizes clássicas). Inclua DOI, Volume e Páginas reais.
+    Estrutura VISUAL e OBRIGATÓRIA:
+    1. 📌 VISÃO GRANULAR: O que é e seus Subtipos (Fisiopatologia direta ao ponto).
+    2. 📊 FLUXOGRAMA DE DECISÃO (Passo a Passo):
+       - Passo 1: Avaliação Inicial...
+       - Passo 2: Conduta X se Y...
+    3. ⚖️ TABELA DE DIAGNÓSTICO DIFERENCIAL: Compare a doença alvo com suas principais confundidoras (Sinais clássicos vs Ignorados).
+    4. 🌍 DIRETRIZES COMPARADAS: Diferenças-chave entre Brasil (SBC/AMB), EUA (AHA/ACC) e Europa (ESC).
+    5. ⚠️ RED FLAGS & ARMADILHAS (Pitfalls).
+    6. 📚 REFERÊNCIAS (Vancouver Estrito): Máx 8 anos. Inclua DOI.
     
     Adicione OBRIGATORIAMENTE no final esta exata linha:
     TAGS_GERADAS: [Grande Área] | [Subtema]
@@ -44,7 +46,7 @@ def consultar_core_ia_perfeicao(prompt):
         res = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "system", "content": instrucao}, {"role": "user", "content": prompt}],
-            temperature=0.3
+            temperature=0.2 # Mais frio = Mais objetivo e esquemático
         ).choices[0].message.content
         
         area, subtema = "Clínica Médica", "Geral"
@@ -66,10 +68,9 @@ def extrair_json_seguro(texto):
         return json.loads(texto)
     except: return []
 
-# --- FUNÇÕES QUE FALTARAM E CAUSAVAM O ERRO ---
 def gerar_apenas_flashcards(texto, area, subtema, email):
     model = configurar_gemini()
-    prompt = f"Gere 5 flashcards avançados sobre o texto. Retorne APENAS o JSON no formato exato: [{{\"p\": \"pergunta\", \"r\": \"resposta\"}}]. Sem texto adicional. Texto: {texto}"
+    prompt = f"Gere 5 flashcards avançados. JSON: [{{\"p\": \"pergunta\", \"r\": \"resposta\"}}]. Texto: {texto}"
     try:
         res = model.generate_content(prompt).text
         dados = extrair_json_seguro(res)
@@ -82,7 +83,7 @@ def gerar_apenas_flashcards(texto, area, subtema, email):
 
 def gerar_apenas_questoes(texto, area, subtema, email):
     model = configurar_gemini()
-    prompt = f"Gere 3 questões de residência ABCD. Retorne APENAS o JSON no formato: [{{\"pergunta\": \"\", \"a\": \"\", \"b\": \"\", \"c\": \"\", \"d\": \"\", \"gabarito\": \"A\", \"justificativa\": \"\"}}]. Texto: {texto}"
+    prompt = f"Gere 3 questões de residência ABCD. JSON: [{{\"pergunta\": \"\", \"a\": \"\", \"b\": \"\", \"c\": \"\", \"d\": \"\", \"gabarito\": \"A\", \"justificativa\": \"\"}}]. Texto: {texto}"
     try:
         res = model.generate_content(prompt).text
         dados = extrair_json_seguro(res)
@@ -93,39 +94,64 @@ def gerar_apenas_questoes(texto, area, subtema, email):
         return count
     except: return 0
 
-def add_discreet_tracking(canvas, doc, email):
+def add_premium_header_footer(canvas, doc, email):
+    """Cabeçalho e Rodapé de Alto Padrão (Enterprise)"""
     canvas.saveState()
+    # Cabeçalho Fixo
+    canvas.setFillColor(colors.HexColor('#0B2D5C'))
+    canvas.rect(0, 740, 612, 52, fill=1, stroke=0) # Barra Azul Topo
+    canvas.setFillColor(colors.white)
+    canvas.setFont('Helvetica-Bold', 18)
+    canvas.drawString(40, 760, "CORE NEXUS")
+    canvas.setFont('Helvetica', 10)
+    canvas.drawString(40, 748, "Clinical Guidelines & Advanced Pathways")
+    
+    # Rodapé Invisível/Discreto (Rastreio)
     codigo_rastreio = base64.b64encode(email.encode('utf-8')).decode('utf-8')
     canvas.setFont('Helvetica', 6)
     canvas.setFillGray(0.7)
-    canvas.drawString(30, 20, f"Ref: CNX-{codigo_rastreio[:15]}... | SysDoc")
+    canvas.drawString(40, 20, f"ID: CNX-{codigo_rastreio[:15]} | Validated Document | {datetime.datetime.now().strftime('%Y-%m-%d')}")
     canvas.restoreState()
 
 def gerar_pdf_resposta(texto, email):
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
-    
-    doc.title = "Protocolo CORE NEXUS"
-    doc.author = email 
-    doc.subject = f"Gerado em {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=70, bottomMargin=40)
     
     styles = getSampleStyleSheet()
-    style_normal = ParagraphStyle('Normal_Justify', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, fontSize=11, leading=16)
+    style_normal = ParagraphStyle('Normal_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=8, fontSize=10, leading=14)
+    style_h2 = ParagraphStyle('Heading2_Premium', parent=styles['Heading2'], textColor=colors.HexColor('#0B2D5C'), spaceBefore=15, spaceAfter=8, fontSize=14, borderPadding=4)
+    style_h3 = ParagraphStyle('Heading3_Sub', parent=styles['Heading3'], textColor=colors.HexColor('#2E86C1'), spaceBefore=10, spaceAfter=5, fontSize=12)
     
-    header_data = [[Paragraph("<font color='white' size='16'><b>CORE NEXUS</b></font> <br/><font color='#A9Cce3'>Terminal Médico de Elite</font>"), ""]]
-    t = Table(header_data, colWidths=[400, 100])
-    t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#0B2D5C')), ('PADDING', (0,0), (-1,-1), 12)]))
+    story = []
     
-    story = [t, Spacer(1, 20)]
-    
-    texto_formatado = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', texto)
-    texto_formatado = texto_formatado.replace('💊', '').replace('🩺', '').replace('⚠️', '').replace('📈', '').replace('📚', '').replace('🌍', '').replace('⚖️', '')
-    
-    for paragrafo in texto_formatado.split('\n\n'):
-        if paragrafo.strip():
-            story.append(Paragraph(paragrafo.replace('\n', '<br/>'), style_normal))
+    # Tratamento Avançado de Markdown para o PDF
+    linhas = texto.split('\n')
+    for linha in linhas:
+        linha = linha.strip()
+        if not linha:
+            continue
             
-    doc.build(story, onFirstPage=lambda c, d: add_discreet_tracking(c, d, email), onLaterPages=lambda c, d: add_discreet_tracking(c, d, email))
+        # Tratamento de Negritos
+        linha = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', linha)
+        linha = linha.replace('💊', '').replace('🩺', '').replace('⚠️', '').replace('📈', '').replace('📚', '').replace('🌍', '').replace('⚖️', '').replace('📌', '').replace('📊', '')
+        
+        # Parse de Cabeçalhos (H2 e H3)
+        if linha.startswith('### '):
+            story.append(Paragraph(linha.replace('### ', '').strip(), style_h3))
+        elif linha.startswith('## ') or linha.startswith('1. ') or linha.startswith('2. ') or linha.startswith('3. '):
+            story.append(Paragraph(linha.replace('## ', '').strip(), style_h2))
+        elif linha.startswith('- ') or linha.startswith('* '):
+            # Bullet points simulados
+            story.append(Paragraph(f"• {linha[2:]}", style_normal))
+        elif "|" in linha and "---" not in linha:
+            # Captura grosseira de linhas de tabela para não quebrar o design
+            story.append(Paragraph(f"<i>{linha}</i>", style_normal))
+        elif "---" in linha:
+            pass # Ignora divisores de markdown puro
+        else:
+            story.append(Paragraph(linha, style_normal))
+            
+    doc.build(story, onFirstPage=lambda c, d: add_premium_header_footer(c, d, email), onLaterPages=lambda c, d: add_premium_header_footer(c, d, email))
     
     buffer.seek(0)
     return buffer
