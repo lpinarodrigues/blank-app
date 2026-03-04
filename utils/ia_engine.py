@@ -8,7 +8,7 @@ import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT
+from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT, TA_CENTER
 from reportlab.lib import colors
 
 def configurar_gemini():
@@ -23,19 +23,23 @@ def configurar_gemini():
 
 def consultar_core_ia_perfeicao(prompt):
     instrucao = """
-    Aja como um 'Attending Physician' (Preceptor Titular) de Harvard. 
-    O usuário é um médico residente. USE LINGUAGEM ESTRITAMENTE TÉCNICA (jargão médico avançado, fisiopatologia granular, receptores, farmacodinâmica).
+    Aja como um Preceptor Titular de Harvard (Attending Physician).
     
-    Estrutura VISUAL e OBRIGATÓRIA:
-    1. 📌 VISÃO GRANULAR ULTRA-TÉCNICA: Fisiopatologia direta e avançada.
-    2. 📊 FLUXOGRAMA DE DECISÃO: Passo a passo da conduta.
-    3. ⚖️ DIAGNÓSTICO DIFERENCIAL: Compare a doença alvo com confundidoras.
-    4. 📈 ESCORES E CRITÉRIOS (MANDATÓRIO): NUNCA cite um escore (ex: NYHA, TIMI, qSOFA, Wells) sem descrever brevemente seus parâmetros e estratificação de risco. Destrinche o escore.
-    5. ⚠️ RED FLAGS & ARMADILHAS.
-    6. 📖 GLOSSÁRIO RÁPIDO: Defina 3 a 4 termos/siglas ultra-técnicos usados na sua explicação.
-    7. 📚 REFERÊNCIAS: Padrão Vancouver (máx 8 anos).
+    DIRETRIZES DE TRIANGULAÇÃO E QUALIDADE (MANDATÓRIO):
+    1. ZERO ERROS DE ESCRITA: Revise mentalmente a ortografia (PT-BR) e a gramática antes de gerar a saída.
+    2. ZERO GENERALIZAÇÃO: Se a doença possui lados, subtipos ou perfis (ex: IC Direita vs Esquerda; Perfil Quente/Úmido), EXPLIQUE CADA UM SEPARADAMENTE. Detalhe os sinais exatos de cada subtipo.
     
-    Gere tabelas usando formato Markdown.
+    ESTRUTURA VISUAL E TÉCNICA OBRIGATÓRIA:
+    1. 📌 FISIOPATOLOGIA E SUBTIPOS: Quebre a doença. (Ex: O que causa a falha direita? Turgência jugular, hepatomegalia. O que causa a esquerda? Estertores, ortopneia).
+    2. 🔀 FLUXOGRAMA DE DECISÃO VISUAL: Crie um algoritmo passo-a-passo usando setas.
+       Exemplo: [Sintoma] ➔ [Sinal de Alerta] ➔ [Exame] ➔ [Conduta Específica].
+    3. ⚖️ DIAGNÓSTICO DIFERENCIAL (TABELA): 
+       Crie uma tabela Markdown estrita com 3 colunas:
+       | Doença Confundidora | Sintomas Semelhantes (O que confunde) | Sinal Diferenciador / Patognomônico (Como excluir) |
+    4. 📈 ESCORES E CRITÉRIOS: Destrinche os parâmetros (O que pontua e qual a conduta por faixa).
+    5. ⚠️ RED FLAGS & PITFALLS: Erros comuns do plantonista.
+    6. 📖 GLOSSÁRIO RÁPIDO: Defina 3 termos ultra-técnicos usados.
+    7. 📚 REFERÊNCIAS: Padrão Vancouver (máx 8 anos, inclua DOI).
     
     Adicione OBRIGATORIAMENTE no final esta exata linha:
     TAGS_GERADAS: [Grande Área] | [Subtema]
@@ -46,7 +50,7 @@ def consultar_core_ia_perfeicao(prompt):
         res = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "system", "content": instrucao}, {"role": "user", "content": prompt}],
-            temperature=0.2 
+            temperature=0.15 # Reduzido para focar na precisão extrema e evitar alucinações gramaticais
         ).choices[0].message.content
         
         area, subtema = "Clínica Médica", "Geral"
@@ -115,20 +119,19 @@ def gerar_pdf_resposta(texto, email):
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=70, bottomMargin=40)
     
     styles = getSampleStyleSheet()
-    style_normal = ParagraphStyle('Normal_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=8, fontSize=10, leading=14)
-    # Ajustei os tamanhos das fontes para não ficarem desproporcionais
+    # NOVA ESTÉTICA: Cinza Chumbo (#2C3E50) em vez de Preto, tamanho ideal para leitura.
+    style_normal = ParagraphStyle('Normal_Bullet', parent=styles['Normal'], textColor=colors.HexColor('#2C3E50'), alignment=TA_JUSTIFY, spaceAfter=8, fontSize=10, leading=15)
     style_h2 = ParagraphStyle('Heading2_Premium', parent=styles['Heading2'], textColor=colors.HexColor('#0B2D5C'), spaceBefore=12, spaceAfter=6, fontSize=13)
-    style_h3 = ParagraphStyle('Heading3_Sub', parent=styles['Heading3'], textColor=colors.HexColor('#2E86C1'), spaceBefore=8, spaceAfter=4, fontSize=11)
+    style_h3 = ParagraphStyle('Heading3_Sub', parent=styles['Heading3'], textColor=colors.HexColor('#1F618D'), spaceBefore=8, spaceAfter=4, fontSize=11, fontName='Helvetica-Bold')
+    # ESTILO DO FLUXOGRAMA
+    style_flowchart = ParagraphStyle('Flowchart', parent=styles['Normal'], textColor=colors.HexColor('#117A65'), alignment=TA_CENTER, spaceBefore=4, spaceAfter=4, fontSize=10, fontName='Helvetica-Bold', borderPadding=5)
     
     story = []
-    
     texto_formatado = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', texto)
-    for emoji in ['💊', '🩺', '⚠️', '📈', '📚', '🌍', '⚖️', '📌', '📊', '📖']:
+    for emoji in ['💊', '🩺', '⚠️', '📈', '📚', '🌍', '⚖️', '📌', '📊', '📖', '🔀']:
         texto_formatado = texto_formatado.replace(emoji, '')
         
     linhas = texto_formatado.split('\n')
-    
-    # MOTOR DE EXTRAÇÃO DE TABELAS (O segredo do design limpo)
     table_data = []
     in_table = False
     
@@ -136,16 +139,19 @@ def gerar_pdf_resposta(texto, email):
         linha = linha.strip()
         if not linha:
             if in_table and table_data:
-                # Renderiza a tabela bonita com fundo azul e linhas cinzas
-                t = Table(table_data, hAlign='LEFT')
+                t = Table(table_data, hAlign='LEFT', colWidths=[120, 180, 220]) # Ajuste dinâmico das colunas da Tabela de DDx
                 t.setStyle(TableStyle([
                     ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0B2D5C')),
                     ('TEXTCOLOR', (0,0), (-1,0), colors.white),
                     ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0,0), (-1,0), 10),
-                    ('BOTTOMPADDING', (0,0), (-1,0), 8),
-                    ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F8F9F9')),
-                    ('GRID', (0,0), (-1,-1), 0.5, colors.grey)
+                    ('FONTSIZE', (0,0), (-1,0), 9),
+                    ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#FDFEFE')), # Fundo da tabela super claro
+                    ('TEXTCOLOR', (0,1), (-1,-1), colors.HexColor('#2C3E50')),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#D5D8DC')), # Linhas de grade suaves
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                    ('TOPPADDING', (0,0), (-1,-1), 6),
                 ]))
                 story.append(t)
                 story.append(Spacer(1, 10))
@@ -154,37 +160,39 @@ def gerar_pdf_resposta(texto, email):
             continue
             
         if '|' in linha:
-            if '---' in linha: continue # Ignora a linha de formatação do markdown
-            # Transforma a linha do markdown em células de PDF
+            if '---' in linha: continue
             row = [Paragraph(cell.strip(), style_normal) for cell in linha.split('|') if cell.strip()]
             if row: table_data.append(row)
             in_table = True
         else:
             if in_table and table_data:
-                t = Table(table_data, hAlign='LEFT')
+                # Renderizar tabela residual
+                t = Table(table_data, hAlign='LEFT', colWidths=[120, 180, 220])
                 t.setStyle(TableStyle([
                     ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0B2D5C')),
                     ('TEXTCOLOR', (0,0), (-1,0), colors.white),
                     ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0,0), (-1,0), 10),
-                    ('BOTTOMPADDING', (0,0), (-1,0), 8),
-                    ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F8F9F9')),
-                    ('GRID', (0,0), (-1,-1), 0.5, colors.grey)
+                    ('FONTSIZE', (0,0), (-1,0), 9),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#FDFEFE')),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#D5D8DC')),
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
                 ]))
                 story.append(t)
                 story.append(Spacer(1, 10))
                 table_data = []
                 in_table = False
                 
-            # Renderização de texto normal e subtítulos balanceados
-            if linha.startswith('### '): story.append(Paragraph(linha.replace('### ', '').strip(), style_h3))
+            # Identificador de Fluxograma (Se tiver setas)
+            if '➔' in linha or '->' in linha:
+                story.append(Paragraph(linha, style_flowchart))
+            elif linha.startswith('### '): story.append(Paragraph(linha.replace('### ', '').strip(), style_h3))
             elif linha.startswith('## ') or linha.startswith('1. ') or linha.startswith('2. '): story.append(Paragraph(linha.replace('## ', '').strip(), style_h2))
             elif linha.startswith('- ') or linha.startswith('* '): story.append(Paragraph(f"• {linha[2:]}", style_normal))
             else: story.append(Paragraph(linha, style_normal))
             
-    if in_table and table_data: # Segurança caso o texto acabe na tabela
-        t = Table(table_data, hAlign='LEFT')
-        t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0B2D5C')), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('GRID', (0,0), (-1,-1), 0.5, colors.grey)]))
+    if in_table and table_data:
+        t = Table(table_data, hAlign='LEFT', colWidths=[120, 180, 220])
+        t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0B2D5C')), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#D5D8DC'))]))
         story.append(t)
         
     doc.build(story, onFirstPage=lambda c, d: add_premium_header_footer(c, d, email), onLaterPages=lambda c, d: add_premium_header_footer(c, d, email))
