@@ -40,13 +40,15 @@ def consultar_core_ia_perfeicao(prompt, texto_contexto=""):
     contexto_adicional = f"\n\n[CONTEXTO DO DOCUMENTO ANEXADO]:\n{texto_contexto[:15000]}" if texto_contexto else ""
     instrucao = """
     Aja como Preceptor Titular de Harvard. LINGUAGEM ESTRITAMENTE TÉCNICA.
-    Estrutura VISUAL OBRIGATÓRIA:
-    1. 📌 FISIOPATOLOGIA E SUBTIPOS.
-    2. 🔀 FLUXOGRAMA DE DECISÃO VISUAL: Crie algoritmos usando o formato: Passo A ➔ Passo B ➔ Passo C. (Seja sucinto nos passos).
+    Estrutura VISUAL OBRIGATÓRIA E COMPLETA:
+    1. 📌 FISIOPATOLOGIA E SUBTIPOS (Granular).
+    2. 🔀 FLUXOGRAMA DE DECISÃO VISUAL (Use ➔ para algoritmos passo a passo).
     3. ⚖️ DIAGNÓSTICO DIFERENCIAL (Tabela Markdown de 3 colunas: Doença | Semelhança | Sinal Patognomônico).
-    4. 📈 ESCORES E CRITÉRIOS (Destrinche as variáveis).
-    5. ⚠️ RED FLAGS.
-    6. 📚 REFERÊNCIAS (Vancouver, máx 8 anos).
+    4. 🌍 DIRETRIZES COMPARADAS (Cruze diferenças reais entre Brasil SBC/AMB, EUA AHA/ACC e Europa ESC).
+    5. 📈 ESCORES E CRITÉRIOS (Destrinche as variáveis de cada escore).
+    6. ⚠️ RED FLAGS & ARMADILHAS.
+    7. 📖 GLOSSÁRIO RÁPIDO (Defina 3 a 4 termos ultra-técnicos usados na explicação).
+    8. 📚 REFERÊNCIAS (Vancouver, máx 8 anos).
     
     Adicione OBRIGATORIAMENTE no final esta exata linha:
     TAGS_GERADAS: [Grande Área] | [Subtema]
@@ -120,13 +122,15 @@ def gerar_pdf_resposta(texto, email):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=70, bottomMargin=40)
     styles = getSampleStyleSheet()
+    
     style_normal = ParagraphStyle('Normal_Bullet', parent=styles['Normal'], textColor=colors.HexColor('#2C3E50'), alignment=TA_JUSTIFY, spaceAfter=8, fontSize=10, leading=15)
     style_h2 = ParagraphStyle('Heading2_Premium', parent=styles['Heading2'], textColor=colors.HexColor('#0B2D5C'), spaceBefore=20, spaceAfter=8, fontSize=13)
     style_h3 = ParagraphStyle('Heading3_Sub', parent=styles['Heading3'], textColor=colors.HexColor('#1F618D'), spaceBefore=15, spaceAfter=6, fontSize=11, fontName='Helvetica-Bold')
-    
-    # ESTILOS PARA O FLUXOGRAMA EM BLOCOS
     style_flow_box = ParagraphStyle('FlowBox', parent=styles['Normal'], textColor=colors.HexColor('#0B5345'), alignment=TA_CENTER, fontSize=10, fontName='Helvetica-Bold')
     style_flow_arrow = ParagraphStyle('FlowArrow', parent=styles['Normal'], textColor=colors.HexColor('#117A65'), alignment=TA_CENTER, fontSize=16, spaceBefore=4, spaceAfter=4)
+    
+    # NOVO ESTILO: Referências pequenas e em tom cinza claro para não poluir
+    style_reference = ParagraphStyle('Reference', parent=styles['Normal'], textColor=colors.HexColor('#7F8C8D'), alignment=TA_JUSTIFY, spaceAfter=4, fontSize=8, leading=11)
     
     story = []
     texto_formatado = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', texto)
@@ -135,6 +139,7 @@ def gerar_pdf_resposta(texto, email):
     linhas = texto_formatado.split('\n')
     table_data = []
     in_table = False
+    in_references_section = False
     
     for linha in linhas:
         linha = linha.strip()
@@ -156,9 +161,12 @@ def gerar_pdf_resposta(texto, email):
                 in_table = False
             continue
             
+        # Detecta quando entramos na seção de referências para aplicar o estilo pequeno
+        if 'referências' in linha.lower() or 'referencias' in linha.lower():
+            in_references_section = True
+            
         if '|' in linha:
             if '---' in linha: continue
-            # FORÇA FONTE BRANCA NO CABEÇALHO E CINZA CHUMBO NO CORPO
             if not table_data:
                 row = [Paragraph(f"<font color='white'><b>{cell.strip()}</b></font>", style_normal) for cell in linha.split('|') if cell.strip()]
             else:
@@ -166,23 +174,14 @@ def gerar_pdf_resposta(texto, email):
             if row: table_data.append(row)
             in_table = True
         elif '➔' in linha or '->' in linha:
-            # TRANSFORMA TEXTO EM FLUXOGRAMA DE BLOCOS
             passos = re.split(r'➔|->', linha)
             for i, passo in enumerate(passos):
                 passo = passo.strip()
                 if passo:
                     box = Table([[Paragraph(passo, style_flow_box)]], colWidths=[300], hAlign='CENTER')
-                    box.setStyle(TableStyle([
-                        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#E8F8F5')), # Fundo Verde Claro
-                        ('BOX', (0,0), (-1,-1), 1.5, colors.HexColor('#117A65')), # Borda Verde Escura
-                        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-                        ('TOPPADDING', (0,0), (-1,-1), 8),
-                    ]))
+                    box.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#E8F8F5')), ('BOX', (0,0), (-1,-1), 1.5, colors.HexColor('#117A65')), ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('BOTTOMPADDING', (0,0), (-1,-1), 8), ('TOPPADDING', (0,0), (-1,-1), 8)]))
                     story.append(box)
-                    if i < len(passos) - 1:
-                        story.append(Paragraph("⬇", style_flow_arrow)) # Seta conectora
+                    if i < len(passos) - 1: story.append(Paragraph("⬇", style_flow_arrow))
             story.append(Spacer(1, 10))
         else:
             if in_table and table_data:
@@ -193,12 +192,18 @@ def gerar_pdf_resposta(texto, email):
                 table_data = []
                 in_table = False
                 
-            if linha.startswith('### '): story.append(Paragraph(linha.replace('### ', '').strip(), style_h3))
+            if linha.startswith('### '): 
+                story.append(Paragraph(linha.replace('### ', '').strip(), style_h3))
             elif linha.startswith('## ') or linha.startswith('1. ') or linha.startswith('2. '): 
                 story.append(Spacer(1, 10))
                 story.append(Paragraph(linha.replace('## ', '').strip(), style_h2))
-            elif linha.startswith('- ') or linha.startswith('* '): story.append(Paragraph(f"• {linha[2:]}", style_normal))
-            else: story.append(Paragraph(linha, style_normal))
+            elif linha.startswith('- ') or linha.startswith('* '): 
+                # Usa o estilo miniatura se estiver na seção de referências, se não usa o normal
+                estilo_atual = style_reference if in_references_section else style_normal
+                story.append(Paragraph(f"• {linha[2:]}", estilo_atual))
+            else: 
+                estilo_atual = style_reference if in_references_section else style_normal
+                story.append(Paragraph(linha, estilo_atual))
             
     doc.build(story, onFirstPage=lambda c, d: add_premium_header_footer(c, d, email), onLaterPages=lambda c, d: add_premium_header_footer(c, d, email))
     buffer.seek(0)
