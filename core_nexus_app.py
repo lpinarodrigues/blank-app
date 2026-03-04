@@ -1,38 +1,39 @@
 import streamlit as st
+import sys
 import os
 
-# Configuração de Página - DEVE ser o primeiro comando Streamlit
-st.set_page_config(page_title="CORE NEXUS", page_icon="🧠", layout="wide")
+# Configuração de Página - OBRIGATORIAMENTE o primeiro comando Streamlit
+st.set_page_config(page_title="CORE NEXUS | Inteligência Médica", page_icon="🧠", layout="wide")
 
-# Função para carregar módulos com segurança
-def carregar_modulo(caminho):
-    try:
-        if "core_ai" in caminho:
-            from paginas.core_ai import core_ai_view
-            return core_ai_view
-        elif "estudo" in caminho:
-            from paginas.estudo import master_study_view
-            return master_study_view
-    except Exception as e:
-        st.error(f"Erro ao carregar módulo {caminho}: {e}")
-        return None
+# Adiciona o diretório atual ao path para evitar erros de importação
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 def main():
     st.sidebar.title("NEXUS CORE")
     
-    # Verificação de Chaves (Para diagnóstico)
+    # Verificação de Chaves (Para diagnóstico no log do Streamlit)
     if "SUPABASE_URL" not in st.secrets:
-        st.error("ERRO: Chaves de segredo não encontradas no Streamlit Cloud!")
+        st.error("🚨 Erro Crítico: Chaves de segredo (Secrets) não encontradas!")
+        st.info("Verifique a aba 'Secrets' nas configurações do seu App no Streamlit Cloud.")
         st.stop()
 
-    menu = st.sidebar.selectbox("Navegação:", ["🧠 Terminal Clínico", "🎓 Master Study"])
+    menu = st.sidebar.selectbox("Navegação:", ["🧠 Terminal Clínico AI", "🎓 Master Study Hub"])
     
-    if menu == "🧠 Terminal Clínico":
-        modulo = carregar_modulo("core_ai")
-        if modulo: modulo.show()
-    else:
-        modulo = carregar_modulo("estudo")
-        if modulo: modulo.show()
+    email = st.session_state.get('user_email', 'admin@nexus.com')
+    st.sidebar.divider()
+    st.sidebar.caption(f"🩺 Operador: {email}")
+
+    # Roteamento Seguro
+    try:
+        if menu == "🧠 Terminal Clínico AI":
+            from paginas.core_ai import core_ai_view
+            core_ai_view.show()
+        else:
+            from paginas.estudo import master_study_view
+            master_study_view.show()
+    except Exception as e:
+        st.error(f"Erro ao carregar módulo: {e}")
+        st.info("Dica: Verifique se as pastas 'paginas/core_ai' e 'paginas/estudo' possuem o arquivo __init__.py")
 
 if __name__ == "__main__":
     main()
