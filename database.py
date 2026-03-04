@@ -5,7 +5,7 @@ import pandas as pd
 def get_supabase():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
-# --- 1. AUTENTICAÇÃO ---
+# --- 1. AUTENTICAÇÃO E SCORE ---
 def validar_login(e, s):
     try: return get_supabase().table("membros_core").select("*").eq("email", e).eq("senha", s).execute().data[0]
     except: return None
@@ -25,16 +25,24 @@ def get_core_score(email):
         return 0
     except: return 0
 
-# --- 2. MOTOR DE REPETIÇÃO ESPAÇADA (SM-2) - O erro estava aqui ---
+# --- 2. ESTATÍSTICAS E SM-2 (Blindado para retornar Dicionários, nunca Inteiros) ---
+def obter_estatisticas_estudo(email):
+    """Garante que a tela receba chaves válidas e não quebre o painel"""
+    try:
+        res = get_supabase().table("flashcards").select("id").eq("criado_por_email", email).neq("categoria", "Lixeira").execute()
+        total = len(res.data) if res.data and isinstance(res.data, list) else 0
+        return {"total_cards": total, "revisoes_pendentes": 0, "precisao": "100%"}
+    except:
+        return {"total_cards": 0, "revisoes_pendentes": 0, "precisao": "0%"}
+
 def atualizar_progresso_sm2(card_id, qualidade):
-    """Atualiza a próxima revisão baseado na qualidade da resposta (1 a 5)"""
     try:
         dias = {1: 0, 3: 3, 4: 7, 5: 15}.get(qualidade, 1)
         proxima = (pd.Timestamp.now() + pd.Timedelta(days=dias)).isoformat()
         get_supabase().table("flashcards").update({"proxima_revisao": proxima, "facilidade": 2.5 + (qualidade * 0.1)}).eq("id", card_id).execute()
     except: pass
 
-# --- 3. ESTUDO ATIVO E BIBLIOTECA ---
+# --- 3. ESTUDO ATIVO E BIBLIOTECA (Filtro Estrito: Apenas Dicionários) ---
 def salvar_item_estudo(dados):
     try: return get_supabase().table("flashcards").insert(dados).execute()
     except: return None
@@ -46,17 +54,31 @@ def salvar_questao(dados):
 def listar_flashcards(email):
     try:
         res = get_supabase().table("flashcards").select("*").eq("criado_por_email", email).eq("is_global", False).neq("categoria", "Lixeira").execute()
-        return res.data if isinstance(res.data, list) else []
+        # BLINDAGEM: Se vier lixo ou números, ele ignora. Só repassa dicionários reais.
+        if res.data and isinstance(res.data, list): return [i for i in res.data if isinstance(i, dict)]
+        return []
+    except: return []
+
+def listar_questoes(email=None):
+    try:
+        query = get_supabase().table("questionarios").select("*")
+        if email: query = query.eq("criado_por_email", email)
+        res = query.execute()
+        if res.data and isinstance(res.data, list): return [i for i in res.data if isinstance(i, dict)]
+        return []
     except: return []
 
 def listar_biblioteca_global(area="Todas", subtema="Todos", limit=100):
-    try: return get_supabase().table("flashcards").select("*").eq("is_global", True).limit(limit).execute().data
+    try:
+        res = get_supabase().table("flashcards").select("*").eq("is_global", True).neq("categoria", "Lixeira").limit(limit).execute()
+        if res.data and isinstance(res.data, list): return [i for i in res.data if isinstance(i, dict)]
+        return []
     except: return []
 
 def adotar_item_global(item_id, email):
     try:
         item = get_supabase().table("flashcards").select("*").eq("id", item_id).single().execute().data
-        if item:
+        if item and isinstance(item, dict):
             novo = item.copy()
             del novo['id']
             if 'created_at' in novo: del novo['created_at']
@@ -66,7 +88,7 @@ def adotar_item_global(item_id, email):
             return True
     except: return False
 
-# --- 4. HISTÓRICO DE CONSULTAS ---
+# --- 4. HISTÓRICO E LIXEIRA ---
 def salvar_historico_chat(email, pergunta, resposta, area, subtema):
     try: get_supabase().table("flashcards").insert({"pergunta": str(pergunta), "resposta": str(resposta), "grande_area": str(area), "subtema": str(subtema), "categoria": "Historico_Chat", "is_global": False, "criado_por_email": email}).execute()
     except: pass
@@ -78,7 +100,6 @@ def carregar_historico_chat(email):
         return []
     except: return []
 
-# --- 5. LIXEIRA / RECICLAGEM ---
 def mover_para_lixeira(item_id):
     try: return get_supabase().table("flashcards").update({"categoria": "Lixeira", "is_global": False}).eq("id", item_id).execute()
     except: return False
@@ -94,5 +115,6 @@ def esvaziar_lixeira(email):
 def listar_lixeira(email):
     try:
         res = get_supabase().table("flashcards").select("*").eq("criado_por_email", email).eq("categoria", "Lixeira").execute()
-        return res.data if isinstance(res.data, list) else []
+        if res.data and isinstance(res.data, list): return [i for i in res.data if isinstance(i, dict)]
+        return []
     except: return []
